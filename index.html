@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Maestro de APUs - Indexscorp</title>
+    <style>
+        :root { --primary: #002f6c; --secondary: #ffc107; --bg: #f4f6f9; --dark: #333; --success: #28a745; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; background-color: var(--bg); color: var(--dark); }
+        .hidden { display: none !important; }
+        .login-container { display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .card { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
+        .app-container { max-width: 1400px; margin: 20px auto; padding: 0 20px; }
+        header { background: var(--primary); color: white; padding: 15px 20px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        
+        /* Sistema de Navegación */
+        .nav-bar { display: flex; gap: 10px; margin-bottom: 20px; }
+        .nav-link { padding: 10px 20px; background: #ddd; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .nav-link.active { background: var(--primary); color: white; }
+        
+        .search-box { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 16px; margin-bottom: 5px; }
+        .results-list { list-style: none; padding: 0; margin: 0 0 20px 0; background: white; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .results-list li { padding: 12px 15px; border-bottom: 1px solid #eee; cursor: pointer; }
+        .results-list li:hover { background: #f0f4f8; }
+        
+        .workspace { display: flex; gap: 20px; }
+        .apu-panel { flex: 3; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .side-panel { flex: 1; display: flex; flex-direction: column; gap: 20px; }
+        .panel-box { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #f8f9fa; color: var(--primary); }
+        
+        .btn { padding: 10px 18px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-warning { background: var(--secondary); color: #000; }
+        
+        input, select, textarea { width: 100%; padding: 8px; margin: 6px 0 12px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    </style>
+</head>
+<body>
+
+    <div id="loginView" class="login-container">
+        <div class="card">
+            <h2 style="color: var(--primary); margin-top: 0;">Ingreso al Sistema</h2>
+            <label>ID Usuario:</label>
+            <input type="text" id="txtUser" placeholder="jgarcia">
+            <label>Contraseña:</label>
+            <input type="password" id="txtPass" placeholder="••••••••">
+            <button class="btn btn-primary" style="width: 100%;" onclick="autenticar()">Ingresar</button>
+            <p id="loginError" style="color: red; font-size: 13px;" class="hidden">Credenciales incorrectas.</p>
+        </div>
+    </div>
+
+    <div id="appView" class="app-container hidden">
+        <header>
+            <h1 style="margin:0; font-size: 20px;">Módulo Integral de APUs - Drive DB</h1>
+            <div>
+                <span id="lblUsuarioActivo" style="margin-right: 15px; font-weight: 600;"></span>
+                <button class="btn btn-warning" style="padding: 5px 10px; font-size: 12px;" onclick="logout()">Salir</button>
+            </div>
+        </header>
+
+        <div class="nav-bar">
+            <button id="navApus" class="nav-link active" onclick="cambiarVista('APUS')">🔍 Consultor de APUs</button>
+            <button id="navMantenimiento" class="nav-link hidden" onclick="cambiarVista('MANTENIMIENTO')">⚙️ Panel de Creación / Mantenimiento</button>
+        </div>
+
+        <div id="viewApus">
+            <input type="text" id="txtSearch" class="search-box" oninput="filtrarPartidas()" placeholder="🔍 Buscar partida por descripción o código...">
+            <ul id="listaPartidas" class="results-list"></ul>
+
+            <div id="workspaceView" class="workspace hidden">
+                <div class="apu-panel">
+                    <h2 id="apuCodigo" style="margin: 0; color: var(--primary); font-size: 15px;"></h2>
+                    <h2 id="apuDescripcion" style="margin: 5px 0 0 0; font-size: 22px;"></h2>
+                    
+                    <div style="display: flex; gap: 30px; margin: 15px 0; background: #eef2f7; padding: 10px 15px; border-radius: 4px;">
+                        <div><strong>Unidad:</strong> <span id="apuUnidad"></span></div>
+                        <div><strong>Rendimiento:</strong> <span id="apuRendimiento"></span> /DÍA</div>
+                        <div><strong>Jornal:</strong> <span id="apuJornal"></span> H-H</div>
+                    </div>
+
+                    <table>
+                        <thead>
+                            <tr><th>Código</th><th>Descripción Recurso</th><th>Unidad</th><th>Cuadrilla</th><th>Cantidad</th><th>Precio S/</th><th>Parcial S/</th></tr>
+                        </thead>
+                        <tbody id="apuCuerpo"></tbody>
+                        <tfoot>
+                            <tr style="background: var(--primary); color: white; font-weight: bold; font-size:16px;">
+                                <td colspan="6" style="text-align: right; padding: 12px;">Costo Unitario Directo por Unidad:</td>
+                                <td id="apuTotalDirecto" style="padding: 12px;">S/ 0.00</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div class="side-panel">
+                    <div id="editorRapidoPanel" class="panel-box style="border-top: 4px solid var(--secondary);">
+                        <h3 style="margin:0 0 10px 0;">Modificar Rendimiento</h3>
+                        <input type="number" id="numNuevoRendimiento" step="any">
+                        <button class="btn btn-warning" style="width:100%;" onclick="guardarCambiosRendimiento()">Actualizar en Drive</button>
+                    </div>
+                    <div id="agregarInsumoApuPanel" class="panel-box" style="border-top: 4px solid var(--success);">
+                        <h3 style="margin:0 0 10px 0;">Asociar Recurso a este APU</h3>
+                        <label>Tipo Insumo:</label>
+                        <select id="selTipoAsociar" onchange="cargarComboInsumosDisponibles()">
+                            <option value="MAT">Material (MAT)</option>
+                            <option value="MO">Mano de Obra (MO)</option>
+                            <option value="EQ">Equipo / Herramienta (EQ)</option>
+                        </select>
+                        <label>Seleccione Recurso:</label>
+                        <select id="selInsumoAsociar"></select>
+                        <label>Cuadrilla o Cantidad:</label>
+                        <input type="number" id="numCantAsociar" step="any" placeholder="Ej: 0.1500 o 1.0">
+                        <button class="btn btn-success" style="width:100%;" onclick="asociarRecursoAPU()">Añadir a la Receta</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="viewMantenimiento" class="hidden">
+            <div class="workspace">
+                <div class="apu-panel" style="flex:1;">
+                    <h2 style="color: var(--primary); border-bottom: 2px solid var(--primary); padding-bottom:5px;">1. Crear Insumo Maestro</h2>
+                    <label>Tipo de Recurso:</label>
+                    <select id="insTipo">
+                        <option value="MAT">Material (MAT)</option>
+                        <option value="MO">Mano de Obra (MO)</option>
+                        <option value="EQ">Equipo (EQ)</option>
+                    </select>
+                    <div class="grid-2">
+                        <div>
+                            <label>Código Único (ID):</label>
+                            <input type="text" id="insId" placeholder="Ej: 0230480020">
+                        </div>
+                        <div>
+                            <label>Unidad Medida:</label>
+                            <input type="text" id="insUnidad" placeholder="Ej: pza, rll, H-H">
+                        </div>
+                    </div>
+                    <label>Descripción del Insumo:</label>
+                    <input type="text" id="insDesc" placeholder="Ej: CLAVOS DE ACERO 3" ">
+                    <div class="grid-2">
+                        <div>
+                            <label>Precio CON IGV (S/):</label>
+                            <input type="number" id="insPrecioCIgv" step="any" oninput="calcularPrecioSIgvForm()" placeholder="0.00">
+                        </div>
+                        <div>
+                            <label>Precio SIN IGV (S/):</label>
+                            <input type="number" id="insPrecioSIgv" step="any" placeholder="0.00">
+                        </div>
+                    </div>
+                    <label>Enlace de Referencia (Promart/Jireh):</label>
+                    <input type="text" id="insLink" placeholder="https://www.promart.pe/...">
+                    <button class="btn btn-primary" style="width:100%; margin-top:10px;" onclick="crearInsumoMaestro()">Registrar Insumo en Drive</button>
+                </div>
+
+                <div class="apu-panel" style="flex:1;">
+                    <h2 style="color: var(--primary); border-bottom: 2px solid var(--primary); padding-bottom:5px;">2. Crear Nueva Partida Vacía</h2>
+                    <label>Código de Partida (ID):</label>
+                    <input type="text" id="partId" placeholder="Ej: 04.02.03.05">
+                    <label>Descripción / Nombre de Partida:</label>
+                    <input type="text" id="partDesc" placeholder="Ej: EXCAVACIÓN MANUAL DE ZANJAS">
+                    <div class="grid-2">
+                        <div>
+                            <label>Unidad Medida:</label>
+                            <input type="text" id="partUnidad" placeholder="Ej: m3, m, kg">
+                        </div>
+                        <div>
+                            <label>Jornal (Horas):</label>
+                            <input type="number" id="partJornal" value="8">
+                        </div>
+                    </div>
+                    <label>Rendimiento Diario Inicial:</label>
+                    <input type="number" id="partRendimiento" placeholder="Ej: 4.00">
+                    <button class="btn btn-success" style="width:100%; margin-top:10px;" onclick="crearPartidaMaestra()">Registrar Partida en Drive</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // PEGA AQUÍ TU ENLACE /EXEC GENERADO POR APPS SCRIPT
+        const URL_API = "AQUÍ_PEGA_TU_URL_DE_GOOGLE_APPS_SCRIPT_TERMINADA_EN_EXEC";
+
+        let BD = {};
+        let usuarioLogueado = null;
+        let partidaSeleccionada = null;
+
+        window.addEventListener('DOMContentLoaded', sintonizarBD);
+
+        async function sintonizarBD() {
+            try {
+                const response = await fetch(URL_API);
+                BD = await response.json();
+                console.log("Base de datos sincronizada.");
+            } catch (error) {
+                alert("Error de red con la Base de datos.");
+            }
+        }
+
+        function autenticar() {
+            const userIn = document.getElementById('txtUser').value.trim().toLowerCase();
+            const passIn = document.getElementById('txtPass').value;
+            const usuario = BD.usuarios.find(u => u.ID_USUARIO.toLowerCase() === userIn && u.PASSWORD.toString() === passIn);
+            
+            if (usuario) {
+                usuarioLogueado = usuario;
+                document.getElementById('loginView').classList.add('hidden');
+                document.getElementById('appView').classList.remove('hidden');
+                document.getElementById('lblUsuarioActivo').innerText = `Operador: ${usuario.NOMBRE}`;
+                if (usuario.PERMISO_EDITAR.toUpperCase() === "SI") {
+                    document.getElementById('navMantenimiento').classList.remove('hidden');
+                }
+            } else {
+                document.getElementById('loginError').classList.remove('hidden');
+            }
+        }
+
+        function logout() { location.reload(); }
+
+        function cambiarVista(vista) {
+            if(vista === 'APUS') {
+                document.getElementById('viewApus').classList.remove('hidden');
+                document.getElementById('viewMantenimiento').classList.add('hidden');
+                document.getElementById('navApus').classList.add('active');
+                document.getElementById('navMantenimiento').classList.remove('active');
+            } else {
+                document.getElementById('viewApus').classList.add('hidden');
+                document.getElementById('viewMantenimiento').classList.remove('hidden');
+                document.getElementById('navApus').classList.remove('active');
+                document.getElementById('navMantenimiento').classList.add('active');
+            }
+        }
+
+        function filtrarPartidas() {
+            const busqueda = document.getElementById('txtSearch').value.toLowerCase();
+            const lista = document.getElementById('listaPartidas');
+            lista.innerHTML = "";
+            if (busqueda.length < 2) return;
+
+            BD.partidas_maestro.filter(p => 
+                p.ID_PARTIDA.toString().toLowerCase().includes(busqueda) || p.DESCRIPCION.toLowerCase().includes(busqueda)
+            ).forEach(p => {
+                const li = document.createElement('li');
+                li.innerText = `${p.ID_PARTIDA} - ${p.DESCRIPCION}`;
+                li.onclick = () => cargarAPU(p.ID_PARTIDA);
+                lista.appendChild(li);
+            });
+        }
+
+        function cargarAPU(idPartida) {
+            document.getElementById('listaPartidas').innerHTML = "";
+            document.getElementById('txtSearch').value = "";
+            const maestro = BD.partidas_maestro.find(p => p.ID_PARTIDA.toString() === idPartida.toString());
+            partidaSeleccionada = maestro;
+
+            document.getElementById('apuCodigo').innerText = `PARTIDA: ${maestro.ID_PARTIDA}`;
+            document.getElementById('apuDescripcion').innerText = maestro.DESCRIPCION;
+            document.getElementById('apuUnidad').innerText = maestro.UNIDAD;
+            document.getElementById('apuRendimiento').innerText = parseFloat(maestro.RENDIMIENTO).toFixed(2);
+            document.getElementById('apuJornal').innerText = maestro.JORNAL;
+            document.getElementById('numNuevoRendimiento').value = maestro.RENDIMIENTO;
+
+            if (usuarioLogueado.PERMISO_EDITAR.toUpperCase() === "SI") {
+                document.getElementById('editorRapidoPanel').classList.remove('hidden');
+                document.getElementById('agregarInsumoApuPanel').classList.remove('hidden');
+                cargarComboInsumosDisponibles();
+            }
+
+            const detalles = BD.partidas_detalle.filter(d => d.ID_PARTIDA.toString() === idPartida.toString());
+            const tbody = document.getElementById('apuCuerpo');
+            tbody.innerHTML = "";
+
+            let subtotalMO = 0;
+            let costoDirectoTotal = 0;
+            let filaHerramientas = null;
+
+            detalles.forEach(d => {
+                let insumo = null;
+                if (d.TIPO_INSUMO === "MAT") insumo = BD.materiales.find(m => m.ID_MAT.toString() === d.ID_INSUMO.toString());
+                else if (d.TIPO_INSUMO === "MO") insumo = BD.mano_de_obra.find(m => m.ID_MO.toString() === d.ID_INSUMO.toString());
+                else if (d.TIPO_INSUMO === "EQ") insumo = BD.equipos.find(m => m.ID_EQ.toString() === d.ID_INSUMO.toString());
+
+                if (!insumo) return;
+                if (insumo.UNIDAD === "%MO") { filaHerramientas = { d, insumo }; return; }
+
+                let precioSinIgv = parseFloat(insumo["PRECIO S/IGV"]) || 0;
+                let cantidad = parseFloat(d.CDRLL_O_CANT);
+                if (d.TIPO_INSUMO === "MO" || (d.TIPO_INSUMO === "EQ" && insumo.UNIDAD !== "GLB")) {
+                    cantidad = (cantidad * parseFloat(maestro.JORNAL)) / parseFloat(maestro.RENDIMIENTO);
+                }
+                let parcial = cantidad * precioSinIgv;
+                if (d.TIPO_INSUMO === "MO") subtotalMO += parcial;
+                costoDirectoTotal += parcial;
+
+                renderFila(d.ID_INSUMO, insumo.DESCRIPCION, insumo.UNIDAD, d.TIPO_INSUMO === "MAT" ? "-" : d.CDRLL_O_CANT, cantidad, precioSinIgv, parcial, insumo.LINK || "");
+            });
+
+            if (filaHerramientas) {
+                let porcentaje = parseFloat(filaHerramientas.d.CDRLL_O_CANT) / 100;
+                let parcialHM = subtotalMO * porcentaje;
+                costoDirectoTotal += parcialHM;
+                renderFila(filaHerramientas.d.ID_INSUMO, filaHerramientas.insumo.DESCRIPCION, "%MO", "-", filaHerramientas.d.CDRLL_O_CANT, subtotalMO, parcialHM, "");
+            }
+
+            document.getElementById('apuTotalDirecto').innerText = `S/ ${costoDirectoTotal.toFixed(2)}`;
+            document.getElementById('workspaceView').classList.remove('hidden');
+        }
+
+        function renderFila(codigo, desc, und, cuadrilla, cantidad, precio, parcial, link) {
+            let linkHtml = link ? `<br><a href="${link}" target="_blank" style="color:#007bff; font-size:11px;">Link Referencia 🔗</a>` : '';
+            document.getElementById('apuCuerpo').innerHTML += `
+                <tr>
+                    <td>${codigo}</td>
+                    <td><strong>${desc}</strong>${linkHtml}</td>
+                    <td>${und}</td>
+                    <td>${cuadrilla}</td>
+                    <td>${und === "%MO" ? parseFloat(cantidad).toFixed(1) : parseFloat(cantidad).toFixed(4)}</td>
+                    <td>S/ ${parseFloat(precio).toFixed(2)}</td>
+                    <td style="font-weight:600;">S/ ${parseFloat(parcial).toFixed(2)}</td>
+                </tr>`;
+        }
+
+        function cargarComboInsumosDisponibles() {
+            const tipo = document.getElementById('selTipoAsociar').value;
+            const combo = document.getElementById('selInsumoAsociar');
+            combo.innerHTML = "";
+            let coleccion = [];
+
+            if(tipo === "MAT") coleccion = BD.materiales.map(i => ({id: i.ID_MAT, desc: i.DESCRIPCION}));
+            else if(tipo === "MO") coleccion = BD.mano_de_obra.map(i => ({id: i.ID_MO, desc: i.DESCRIPCION}));
+            else if(tipo === "EQ") coleccion = BD.equipos.map(i => ({id: i.ID_EQ, desc: i.DESCRIPCION}));
+
+            coleccion.forEach(ins => {
+                combo.innerHTML += `<option value="${ins.id}">${ins.id} - ${ins.desc}</option>`;
+            });
+        }
+
+        function calcularPrecioSIgvForm() {
+            const conIgv = parseFloat(document.getElementById('insPrecioCIgv').value) || 0;
+            document.getElementById('insPrecioSIgv').value = (conIgv / 1.18).toFixed(4);
+        }
+
+        async function enviarComandoAPI(payload, mensajeExito, callbackAccion) {
+            try {
+                await fetch(URL_API, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                alert(mensajeExito + " (Sincronizando con Google Sheets...)");
+                if(callbackAccion) callbackAccion();
+                await sintonizarBD(); 
+            } catch (error) { alert("Error al guardar en Drive."); }
+        }
+
+        function guardarCambiosRendimiento() {
+            const nuevoRend = document.getElementById('numNuevoRendimiento').value;
+            const payload = { usuario: usuarioLogueado.ID_USUARIO, password: usuarioLogueado.PASSWORD, accion: "EDITAR_RENDIMIENTO", id_partida: partidaSeleccionada.ID_PARTIDA, nuevo_rendimiento: nuevoRend };
+            enviarComandoAPI(payload, "Rendimiento actualizado.", () => {
+                partidaSeleccionada.RENDIMIENTO = nuevoRend;
+                cargarAPU(partidaSeleccionada.ID_PARTIDA);
+            });
+        }
+
+        function asociarRecursoAPU() {
+            const tipo = document.getElementById('selTipoAsociar').value;
+            const idIns = document.getElementById('selInsumoAsociar').value;
+            const cant = document.getElementById('numCantAsociar').value;
+            if(!cant || cant <= 0) return alert("Ingrese una cantidad o cuadrilla válida.");
+
+            const payload = { usuario: usuarioLogueado.ID_USUARIO, password: usuarioLogueado.PASSWORD, accion: "ASOCIAR_INSUMO_APU", id_partida: partidaSeleccionada.ID_PARTIDA, tipo_insumo: tipo, id_insumo: idIns, cdrll_o_cant: cant };
+            enviarComandoAPI(payload, "Recurso añadido al APU de manera exitosa.", () => {
+                BD.partidas_detalle.push({ ID_PARTIDA: partidaSeleccionada.ID_PARTIDA, TIPO_INSUMO: tipo, ID_INSUMO: idIns, CDRLL_O_CANT: cant });
+                setTimeout(() => cargarAPU(partidaSeleccionada.ID_PARTIDA), 1500);
+            });
+        }
+
+        function crearInsumoMaestro() {
+            const tipo = document.getElementById('insTipo').value;
+            const id = document.getElementById('insId').value.trim();
+            const desc = document.getElementById('insDesc').value.trim().toUpperCase();
+            const und = document.getElementById('insUnidad').value.trim();
+            const pCIgv = document.getElementById('insPrecioCIgv').value || 0;
+            const pSIgv = document.getElementById('insPrecioSIgv').value || 0;
+            const link = document.getElementById('insLink').value.trim();
+
+            if(!id || !desc || !und) return alert("Complete los campos obligatorios (ID, Descripción y Unidad).");
+
+            const payload = { usuario: usuarioLogueado.ID_USUARIO, password: usuarioLogueado.PASSWORD, accion: "CREAR_INSUMO", tipo, id, descripcion: desc, unidad: und, precio_c_igv: pCIgv, precio_s_igv: pSIgv, link };
+            enviarComandoAPI(payload, `Insumo ${id} registrado en el maestro.`, () => {
+                const filaLocal = { DESCRIPCION: desc, UNIDAD: und, "PRECIO S/IGV": pSIgv, LINK: link };
+                if(tipo === "MAT") { filaLocal.ID_MAT = id; filaLocal["PRECIO C/IGV"] = pCIgv; BD.materiales.push(filaLocal); }
+                else if(tipo === "MO") { filaLocal.ID_MO = id; BD.mano_de_obra.push(filaLocal); }
+                else if(tipo === "EQ") { filaLocal.ID_EQ = id; filaLocal["PRECIO C/IGV"] = pCIgv; BD.equipos.push(filaLocal); }
+                limpiarCamposInsumo();
+            });
+        }
+
+        function crearPartidaMaestra() {
+            const id = document.getElementById('partId').value.trim();
+            const desc = document.getElementById('partDesc').value.trim().toUpperCase();
+            const und = document.getElementById('partUnidad').value.trim();
+            const jornal = document.getElementById('partJornal').value;
+            const rend = document.getElementById('partRendimiento').value;
+
+            if(!id || !desc || !und || !rend) return alert("Complete todos los campos de la partida.");
+
+            const payload = { usuario: usuarioLogueado.ID_USUARIO, password: usuarioLogueado.PASSWORD, accion: "CREAR_PARTIDA", id_partida: id, descripcion: desc, unidad: und, jornal, rendimiento: rend };
+            enviarComandoAPI(payload, `Partida ${id} creada con éxito. Ya puedes buscarla y asignarle recursos.`, () => {
+                BD.partidas_maestro.push({ ID_PARTIDA: id, DESCRIPCION: desc, UNIDAD: und, JORNAL: jornal, RENDIMIENTO: rend });
+                document.getElementById('partId').value = ""; document.getElementById('partDesc').value = ""; document.getElementById('partUnidad').value = ""; document.getElementById('partRendimiento').value = "";
+                cambiarVista('APUS');
+            });
+        }
+
+        function limpiarCamposInsumo() {
+            document.getElementById('insId').value = ""; document.getElementById('insDesc').value = ""; document.getElementById('insUnidad').value = "";
+            document.getElementById('insPrecioCIgv').value = ""; document.getElementById('insPrecioSIgv').value = ""; document.getElementById('insLink').value = "";
+        }
+    </script>
+</body>
+</html>
