@@ -3,423 +3,554 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema Maestro de APUs - Indexscorp</title>
+    <title>Look-Ahead & Control Diario</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- NUEVO: Librería para crear el PDF e insertar la imagen -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
     <style>
-        :root { --primary: #002f6c; --secondary: #ffc107; --bg: #f4f6f9; --dark: #333; --success: #28a745; }
-        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; background-color: var(--bg); color: var(--dark); }
-        .hidden { display: none !important; }
-        .login-container { display: flex; justify-content: center; align-items: center; height: 100vh; }
-        .card { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
-        .app-container { max-width: 1400px; margin: 20px auto; padding: 0 20px; }
-        header { background: var(--primary); color: white; padding: 15px 20px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        
-        /* Sistema de Navegación */
-        .nav-bar { display: flex; gap: 10px; margin-bottom: 20px; }
-        .nav-link { padding: 10px 20px; background: #ddd; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .nav-link.active { background: var(--primary); color: white; }
-        
-        .search-box { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 16px; margin-bottom: 5px; }
-        .results-list { list-style: none; padding: 0; margin: 0 0 20px 0; background: white; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .results-list li { padding: 12px 15px; border-bottom: 1px solid #eee; cursor: pointer; }
-        .results-list li:hover { background: #f0f4f8; }
-        
-        .workspace { display: flex; gap: 20px; }
-        .apu-panel { flex: 3; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .side-panel { flex: 1; display: flex; flex-direction: column; gap: 20px; }
-        .panel-box { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
-        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-        th { background-color: #f8f9fa; color: var(--primary); }
-        
-        .btn { padding: 10px 18px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; }
-        .btn-primary { background: var(--primary); color: white; }
-        .btn-success { background: var(--success); color: white; }
-        .btn-warning { background: var(--secondary); color: #000; }
-        
-        input, select, textarea { width: 100%; padding: 8px; margin: 6px 0 12px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        /* Patrón de achurado para sectores no cumplidos (PPC) */
+        .hatch-no-cumplido {
+            background-image: repeating-linear-gradient(
+                45deg,
+                rgba(255, 255, 255, 0.4),
+                rgba(255, 255, 255, 0.4) 5px,
+                transparent 5px,
+                transparent 10px
+            ) !important;
+            border: 2px solid #ef4444 !important; /* Borde rojo para resaltar el fallo */
+            color: #fff !important;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+        }
     </style>
 </head>
-<body>
+<body class="bg-slate-200 text-slate-800 font-sans min-h-screen flex items-center justify-center p-4 transition-all duration-500">
+    
+    <!-- LOGIN -->
+    <div id="v0-login" class="bg-white p-8 rounded-xl shadow-lg w-full max-w-sm transition-all duration-300">
+        <div class="text-center mb-8">
+            <div class="bg-blue-600 text-white w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold shadow-md">
+                LA
+            </div>
+            <h2 class="text-2xl font-extrabold text-gray-800">Iniciar Sesión</h2>
+            <p class="text-sm text-gray-500 mt-1">Sistema de Control y Look-Ahead</p>
+        </div>
 
-    <div id="loginView" class="login-container">
-        <div class="card">
-            <h2 style="color: var(--primary); margin-top: 0;">Ingreso al Sistema</h2>
-            <label>ID Usuario:</label>
-            <input type="text" id="txtUser" placeholder="jgarcia">
-            <label>Contraseña:</label>
-            <input type="password" id="txtPass" placeholder="••••••••">
-            <button class="btn btn-primary" style="width: 100%;" onclick="autenticar()">Ingresar</button>
-            <p id="loginError" style="color: red; font-size: 13px;" class="hidden">Credenciales incorrectas.</p>
+        <form id="loginForm" class="space-y-5">
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Usuario o Correo Electrónico</label>
+                <input type="text" id="txtEmail" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" placeholder="USR001 o usuario@empresa.com" required>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Contraseña</label>
+                <input type="password" id="txtPassword" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" placeholder="••••••••" required>
+            </div>
+            
+            <p id="msgError" class="text-red-500 text-sm hidden text-center font-medium bg-red-50 p-2 rounded">Credenciales incorrectas.</p>
+
+            <button type="submit" id="btnLogin" class="w-full bg-blue-600 text-white font-bold py-2.5 px-4 rounded-lg hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 transition-all duration-200 flex justify-center items-center">
+                Ingresar
+            </button>
+        </form>
+        
+        <div class="mt-6 text-center">
+            <p class="text-xs text-gray-400">&copy; 2026 Index Corp</p>
         </div>
     </div>
 
-    <div id="appView" class="app-container hidden">
-        <header>
-            <h1 style="margin:0; font-size: 20px;">Módulo Integral de APUs - Drive DB</h1>
+    <!-- DASHBOARD -->
+    <div id="v1-dashboard" class="hidden w-full max-w-6xl mx-auto flex-col h-screen py-8">
+        <header class="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm mb-6">
             <div>
-                <span id="lblUsuarioActivo" style="margin-right: 15px; font-weight: 600;"></span>
-                <button class="btn btn-warning" style="padding: 5px 10px; font-size: 12px;" onclick="logout()">Salir</button>
+                <h1 class="text-2xl font-bold text-gray-800">Mis Proyectos</h1>
+                <p id="lblUsuarioActivo" class="text-sm text-gray-500">Bienvenido, Cargando...</p>
+            </div>
+            <button id="btnLogout" class="text-red-500 hover:text-red-700 font-semibold text-sm transition-colors">
+                Cerrar Sesión
+            </button>
+        </header>
+        <main id="gridProyectos" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></main>
+    </div>
+
+    <!-- PROYECTO: LOOK-AHEAD -->
+    <div id="v2-proyecto" class="hidden w-full max-w-7xl mx-auto flex-col min-h-screen py-4">
+        <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-xl shadow-sm mb-6 border-l-4 border-blue-600 gap-4">
+            <div>
+                <button id="btnVolverDashboard" class="text-blue-600 hover:text-blue-800 text-sm font-semibold mb-1 flex items-center transition-colors">
+                    ← Volver a Mis Proyectos
+                </button>
+                <h1 id="lblNombreProyecto" class="text-2xl font-bold text-gray-800">Cargando Proyecto...</h1>
+                <p id="lblIdProyecto" class="text-xs text-gray-400 font-mono">ID: ---</p>
+            </div>
+            
+            <div class="flex space-x-1 sm:space-x-2 bg-slate-100 p-1 rounded-lg overflow-x-auto hide-scrollbar w-full sm:w-auto">
+                <button id="btnTabLA" class="px-3 py-2 bg-white shadow text-blue-700 font-semibold rounded-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 transition-colors">Look-Ahead</button>
+                <button id="btnTabPPC" class="px-3 py-2 text-gray-600 hover:text-blue-600 font-medium rounded-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 transition-colors">Plan Semanal (PPC)</button>
+                <button class="px-3 py-2 text-gray-600 font-medium rounded-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 opacity-50 cursor-not-allowed">Control Diario</button>
+                <button class="px-3 py-2 text-gray-600 font-medium rounded-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 opacity-50 cursor-not-allowed">Restricciones</button>
+                <button class="px-3 py-2 text-gray-600 font-medium rounded-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 opacity-50 cursor-not-allowed">Dashboard</button>
             </div>
         </header>
 
-        <div class="nav-bar">
-            <button id="navApus" class="nav-link active" onclick="cambiarVista('APUS')">🔍 Consultor de APUs</button>
-            <button id="navMantenimiento" class="nav-link hidden" onclick="cambiarVista('MANTENIMIENTO')">⚙️ Panel de Creación / Mantenimiento</button>
-        </div>
-
-        <div id="viewApus">
-            <input type="text" id="txtSearch" class="search-box" oninput="filtrarPartidas()" placeholder="🔍 Buscar partida por descripción o código...">
-            <ul id="listaPartidas" class="results-list"></ul>
-
-            <div id="workspaceView" class="workspace hidden">
-                <div class="apu-panel">
-                    <h2 id="apuCodigo" style="margin: 0; color: var(--primary); font-size: 15px;"></h2>
-                    <h2 id="apuDescripcion" style="margin: 5px 0 0 0; font-size: 22px;"></h2>
+        <main id="mainLookAhead" class="bg-white rounded-xl shadow-sm border border-gray-100 flex-grow flex flex-col overflow-hidden mt-4">
+            <div class="p-3 border-b border-gray-200 flex justify-between items-center bg-slate-50 flex-wrap gap-2">
+                <div class="flex items-center space-x-2 sm:space-x-4">
+                    <h2 class="text-sm font-bold text-gray-800 hidden sm:block">Programación Diaria</h2>
+                    <h2 class="text-sm font-bold text-gray-800 sm:hidden">Look-Ahead</h2>
                     
-                    <div style="display: flex; gap: 30px; margin: 15px 0; background: #eef2f7; padding: 10px 15px; border-radius: 4px;">
-                        <div><strong>Unidad:</strong> <span id="apuUnidad"></span></div>
-                        <div><strong>Rendimiento:</strong> <span id="apuRendimiento"></span> /DÍA</div>
-                        <div><strong>Jornal:</strong> <span id="apuJornal"></span> H-H</div>
-                    </div>
+                    <div id="cajaVersiones" class="flex items-center bg-white border border-gray-200 px-2 py-1 rounded-md shadow-sm">
+                        <span class="w-2 h-2 bg-green-500 rounded-full mr-1.5" id="dotVersion1"></span>
+                        <span id="lblVersionActual" class="text-[10px] sm:text-xs font-semibold text-gray-600">Actual</span>
+                        <select id="cmbHistorialVersiones" class="hidden ml-1 text-[10px] sm:text-xs border-none bg-slate-100 text-gray-700 font-semibold cursor-pointer outline-none rounded px-1 py-0.5">
+                            <!-- JS Inyectará las opciones -->
+                        </select>
 
-                    <table>
-                        <thead>
-                            <tr><th>Código</th><th>Descripción Recurso</th><th>Unidad</th><th>Cuadrilla</th><th>Cantidad</th><th>Precio S/</th><th>Parcial S/</th></tr>
-                        </thead>
-                        <tbody id="apuCuerpo"></tbody>
-                        <tfoot>
-                            <tr style="background: var(--primary); color: white; font-weight: bold; font-size:16px;">
-                                <td colspan="6" style="text-align: right; padding: 12px;">Costo Unitario Directo por Unidad:</td>
-                                <td id="apuTotalDirecto" style="padding: 12px;">S/ 0.00</td>
+                        <!-- NUEVO: SEGUNDO MENÚ (Oculto por defecto) -->
+                        <div id="cajaVersionesVs" class="hidden items-center ml-2 pl-2 border-l border-gray-300">
+                            <span class="text-[10px] font-bold text-gray-400 mr-2">VS</span>
+                            <select id="cmbHistorialVersiones2" class="text-[10px] sm:text-xs border-none bg-purple-50 text-purple-700 font-semibold cursor-pointer outline-none rounded px-1 py-0.5">
+                                <!-- JS Inyectará las opciones -->
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="space-x-1 sm:space-x-2 flex items-center">
+                    <!-- BADGE INFORMATIVO -->
+                    <span id="badgeVentana" class="hidden sm:inline-flex bg-green-100 text-green-800 text-[10px] font-bold px-2 py-1 rounded-md border border-green-200 uppercase shadow-sm">
+                        🟢 Rango Activo: Semanas -- al --
+                    </span>
+
+                    <!-- NUEVO: SELECTOR DE ROL (Solo ADMIN) -->
+                    <select id="cmbRolSimulado" class="hidden ml-2 bg-purple-100 text-purple-800 border border-purple-300 px-2 py-1 rounded text-[10px] font-bold outline-none cursor-pointer shadow-sm uppercase mr-2">
+                        <option value="RESIDENTE">Vista: RESIDENTE</option>
+                        <option value="SUPERVISION">Vista: SUPERVISIÓN</option>
+                    </select>
+
+                    <!-- NUEVO BOTÓN COMPARAR (Para todos) -->
+                    <button id="btnToggleComparativo" class="bg-teal-600 text-white px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-teal-700 transition shadow-sm flex items-center mr-2">
+                        ⚖️ <span class="hidden sm:inline ml-1">Comparar Roles</span>
+                    </button>
+
+                    <!-- NUEVO BOTÓN CONFIGURACIÓN -->
+                    <button onclick="abrirModalConfigSemanas()" class="bg-indigo-100 text-indigo-700 border border-indigo-300 px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-indigo-200 transition shadow-sm flex items-center">
+                        🗓️ <span class="hidden sm:inline ml-1">Configurar Semanas</span>
+                    </button>
+
+                    <!-- LOS BOTONES QUE YA TENÍAS -->
+                    <button id="btnRegistrarVersion" class="bg-indigo-600 text-white px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-indigo-700 transition shadow-sm flex items-center">
+                        🔒 <span class="hidden sm:inline ml-1">Registrar Versión</span>
+                    </button>
+
+                    <button id="btnGuardarOrden" class="hidden bg-green-600 text-white px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-green-700 transition shadow-sm items-center animate-pulse">
+                        💾 <span class="hidden sm:inline ml-1">Guardar Cambios</span>
+                    </button>
+                    <button class="bg-white border border-gray-300 text-gray-700 px-2 sm:px-3 py-1.5 rounded text-xs font-semibold hover:bg-gray-100 transition shadow-sm flex items-center">
+                        🔍 <span class="hidden sm:inline ml-1">Filtros</span>
+                    </button>
+                    <button onclick="document.getElementById('modalEncabezado').classList.remove('hidden')" class="bg-slate-700 text-white px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-slate-800 transition shadow-sm flex items-center">
+                        + <span class="hidden sm:inline ml-1">Encabezado</span>
+                    </button>
+                    <button onclick="document.getElementById('modalActividad').classList.remove('hidden')" class="bg-blue-600 text-white px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-blue-700 transition shadow-sm flex items-center">
+                        + <span class="hidden sm:inline ml-1">Actividad</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center bg-white p-2 border-b border-gray-200 text-xs sm:text-sm">
+                <button class="p-2 text-gray-500 hover:bg-gray-100 rounded-lg font-bold">&larr; Ant</button>
+                
+                <div class="flex space-x-1 sm:space-x-2 font-semibold overflow-x-auto hide-scrollbar">
+                    <button id="btnSemana1" onclick="cambiarSemana(1)" class="tab-semana px-3 sm:px-4 py-1.5 bg-blue-100 text-blue-800 rounded-lg whitespace-nowrap border border-blue-200 shadow-sm transition-all">
+                        Semana 1
+                    </button>
+                    <button id="btnSemana2" onclick="cambiarSemana(2)" class="tab-semana px-3 sm:px-4 py-1.5 text-gray-600 hover:bg-slate-100 rounded-lg whitespace-nowrap transition-all hidden sm:block">
+                        Semana 2
+                    </button>
+                    <button id="btnSemana3" onclick="cambiarSemana(3)" class="tab-semana px-3 sm:px-4 py-1.5 text-gray-600 hover:bg-slate-100 rounded-lg whitespace-nowrap transition-all hidden sm:block">
+                        Semana 3
+                    </button>
+                    <button id="btnSemana4" onclick="cambiarSemana(4)" class="tab-semana px-3 sm:px-4 py-1.5 text-gray-600 hover:bg-slate-100 rounded-lg whitespace-nowrap transition-all hidden sm:block">
+                        Semana 4
+                    </button>
+                </div>
+
+                <button class="p-2 text-gray-500 hover:bg-gray-100 rounded-lg font-bold">Sig &rarr;</button>
+            </div>
+
+            <!-- TABLA PRINCIPAL (ARRIBA) -->
+            <div id="tituloTablaPrincipal" class="hidden w-full bg-blue-600 text-white text-center text-[10px] font-bold py-1 shadow-sm z-10 uppercase tracking-widest">PLANIFICACIÓN: PRINCIPAL</div>
+            <div id="contenedorLookAhead" class="w-full overflow-x-auto overflow-y-auto relative custom-scrollbar transition-all" style="max-height: 60vh;">
+                <table class="table-fixed w-full min-w-max text-[11px] sm:text-xs text-center text-gray-800 border-collapse whitespace-nowrap">
+                    <thead class="text-xs text-gray-700 bg-slate-100 sticky top-0 z-20 shadow-sm">
+                        <tr class="bg-slate-200" id="trCabeceraFechas">
+                            <th class="px-1 py-2 border border-slate-300 sticky left-0 z-30 bg-slate-200 w-8 sm:w-10 text-center shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                <input type="checkbox" id="chkSelectAll" class="cursor-pointer rounded">
+                            </th>
+                            <th class="px-2 py-2 border border-slate-300 sticky left-[32px] sm:left-[40px] z-30 bg-slate-200 w-12 sm:w-16 text-center shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">ÍNDICE</th>
+                            <th class="px-3 py-2 border border-slate-300 sticky left-[80px] sm:left-[104px] z-30 bg-slate-200 w-48 sm:w-64 text-left truncate shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">DESCRIPCIÓN DE LA ACTIVIDAD</th>
+                            <th class="px-2 py-2 border border-slate-300 w-12 hidden sm:table-cell">UND</th>
+                            <th class="px-2 py-2 border border-slate-300 w-24">SC / RUBRO</th>
+                            <!-- JS Inyecta Días -->
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyLookAhead"></tbody>
+                </table>
+            </div>
+
+            <!-- TABLA SECUNDARIA (ABAJO - MODO COMPARATIVO) -->
+            <div id="contenedorSecundario" class="hidden w-full flex-col border-t-4 border-slate-300 mt-2">
+                <div id="tituloTablaSecundaria" class="w-full bg-purple-600 text-white text-center text-[10px] font-bold py-1 shadow-sm z-10 uppercase tracking-widest">PLANIFICACIÓN: SECUNDARIA</div>
+                <div id="contenedorLookAheadSup" class="w-full overflow-x-auto overflow-y-auto relative custom-scrollbar" style="max-height: 28vh;">
+                    <table class="table-fixed w-full min-w-max text-[11px] sm:text-xs text-center text-gray-800 border-collapse whitespace-nowrap">
+                        <thead class="text-xs text-gray-700 bg-slate-100 sticky top-0 z-20 shadow-sm">
+                            <tr class="bg-slate-200" id="trCabeceraFechasSup">
+                                <th class="px-1 py-2 border border-slate-300 sticky left-0 z-30 bg-slate-200 w-8 sm:w-10 text-center shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]"></th>
+                                <th class="px-2 py-2 border border-slate-300 sticky left-[32px] sm:left-[40px] z-30 bg-slate-200 w-12 sm:w-16 text-center shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">ÍNDICE</th>
+                                <th class="px-3 py-2 border border-slate-300 sticky left-[80px] sm:left-[104px] z-30 bg-slate-200 w-48 sm:w-64 text-left truncate shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">DESCRIPCIÓN DE LA ACTIVIDAD</th>
+                                <th class="px-2 py-2 border border-slate-300 w-12 hidden sm:table-cell">UND</th>
+                                <th class="px-2 py-2 border border-slate-300 w-24">SC / RUBRO</th>
+                                <!-- JS Inyecta Días -->
                             </tr>
-                        </tfoot>
+                        </thead>
+                        <tbody id="tbodyLookAheadSup"></tbody>
                     </table>
                 </div>
-
-                <div class="side-panel">
-                    <div id="editorRapidoPanel" class="panel-box style="border-top: 4px solid var(--secondary);">
-                        <h3 style="margin:0 0 10px 0;">Modificar Rendimiento</h3>
-                        <input type="number" id="numNuevoRendimiento" step="any">
-                        <button class="btn btn-warning" style="width:100%;" onclick="guardarCambiosRendimiento()">Actualizar en Drive</button>
-                    </div>
-                    <div id="agregarInsumoApuPanel" class="panel-box" style="border-top: 4px solid var(--success);">
-                        <h3 style="margin:0 0 10px 0;">Asociar Recurso a este APU</h3>
-                        <label>Tipo Insumo:</label>
-                        <select id="selTipoAsociar" onchange="cargarComboInsumosDisponibles()">
-                            <option value="MAT">Material (MAT)</option>
-                            <option value="MO">Mano de Obra (MO)</option>
-                            <option value="EQ">Equipo / Herramienta (EQ)</option>
+            </div>
+        </main>
+        <!-- CONTENEDOR PLAN SEMANAL (PPC) -->
+        <main id="mainPPC" class="hidden bg-white rounded-xl shadow-sm border border-gray-100 flex-grow flex-col overflow-hidden mt-4">
+            
+            <!-- Controles Superiores PPC -->
+            <div class="p-3 border-b border-gray-200 flex justify-between items-center bg-slate-50 flex-wrap gap-2">
+                <div class="flex items-center space-x-2 sm:space-x-4">
+                    <h2 class="text-sm font-bold text-gray-800">Evaluación PPC</h2>
+                    
+                    <!-- NUEVO: Selector de Historial PPC -->
+                    <div class="flex items-center bg-white border border-gray-200 px-2 py-1 rounded-md shadow-sm border-l-4 border-indigo-500">
+                        <span class="text-[10px] sm:text-xs font-bold text-indigo-700 mr-2">Historial:</span>
+                        <select id="cmbHistorialPPC" class="text-[10px] sm:text-xs border-none bg-indigo-50 text-indigo-700 font-bold cursor-pointer outline-none rounded px-1 py-0.5">
+                            <option value="EDICION" data-file="">Modo Edición</option>
                         </select>
-                        <label>Seleccione Recurso:</label>
-                        <select id="selInsumoAsociar"></select>
-                        <label>Cuadrilla o Cantidad:</label>
-                        <input type="number" id="numCantAsociar" step="any" placeholder="Ej: 0.1500 o 1.0">
-                        <button class="btn btn-success" style="width:100%;" onclick="asociarRecursoAPU()">Añadir a la Receta</button>
+                    </div>
+
+                    <div class="flex items-center bg-white border border-gray-200 px-2 py-1 rounded-md shadow-sm selectores-edicion-ppc">
+                        <span class="text-[10px] sm:text-xs font-semibold text-gray-500 mr-2">Base:</span>
+                        <select id="cmbVersionPPC" class="text-[10px] sm:text-xs border-none bg-slate-100 text-gray-700 font-bold cursor-pointer outline-none rounded px-1 py-0.5">
+                            <option value="">Seleccione Versión...</option>
+                        </select>
+                    </div>
+
+                    <div class="flex items-center bg-white border border-gray-200 px-2 py-1 rounded-md shadow-sm selectores-edicion-ppc">
+                        <span class="text-[10px] sm:text-xs font-semibold text-gray-500 mr-2">Semana:</span>
+                        <select id="cmbSemanaPPC" class="text-[10px] sm:text-xs border-none bg-blue-50 text-blue-700 font-bold cursor-pointer outline-none rounded px-1 py-0.5">
+                            <option value="1">Semana 1</option>
+                            <option value="2">Semana 2</option>
+                            <option value="3">Semana 3</option>
+                            <option value="4">Semana 4</option>
+                        </select>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <div id="viewMantenimiento" class="hidden">
-            <div class="workspace">
-                <div class="apu-panel" style="flex:1;">
-                    <h2 style="color: var(--primary); border-bottom: 2px solid var(--primary); padding-bottom:5px;">1. Crear Insumo Maestro</h2>
-                    <label>Tipo de Recurso:</label>
-                    <select id="insTipo">
-                        <option value="MAT">Material (MAT)</option>
-                        <option value="MO">Mano de Obra (MO)</option>
-                        <option value="EQ">Equipo (EQ)</option>
+                
+                <div class="space-x-1 sm:space-x-2 flex items-center">
+                    <!-- NUEVO: SELECTOR DE ROL PPC (Solo ADMIN) -->
+                    <select id="cmbRolSimuladoPPC" class="hidden ml-2 bg-purple-100 text-purple-800 border border-purple-300 px-2 py-1 rounded text-[10px] font-bold outline-none cursor-pointer shadow-sm uppercase mr-2">
+                        <option value="RESIDENTE">Vista: RESIDENTE</option>
+                        <option value="SUPERVISION">Vista: SUPERVISIÓN</option>
                     </select>
-                    <div class="grid-2">
-                        <div>
-                            <label>Código Único (ID):</label>
-                            <input type="text" id="insId" placeholder="Ej: 0230480020">
-                        </div>
-                        <div>
-                            <label>Unidad Medida:</label>
-                            <input type="text" id="insUnidad" placeholder="Ej: pza, rll, H-H">
-                        </div>
-                    </div>
-                    <label>Descripción del Insumo:</label>
-                    <input type="text" id="insDesc" placeholder="Ej: CLAVOS DE ACERO 3" ">
-                    <div class="grid-2">
-                        <div>
-                            <label>Precio CON IGV (S/):</label>
-                            <input type="number" id="insPrecioCIgv" step="any" oninput="calcularPrecioSIgvForm()" placeholder="0.00">
-                        </div>
-                        <div>
-                            <label>Precio SIN IGV (S/):</label>
-                            <input type="number" id="insPrecioSIgv" step="any" placeholder="0.00">
-                        </div>
-                    </div>
-                    <label>Enlace de Referencia (Promart/Jireh):</label>
-                    <input type="text" id="insLink" placeholder="https://www.promart.pe/...">
-                    <button class="btn btn-primary" style="width:100%; margin-top:10px;" onclick="crearInsumoMaestro()">Registrar Insumo en Drive</button>
-                </div>
 
-                <div class="apu-panel" style="flex:1;">
-                    <h2 style="color: var(--primary); border-bottom: 2px solid var(--primary); padding-bottom:5px;">2. Crear Nueva Partida Vacía</h2>
-                    <label>Código de Partida (ID):</label>
-                    <input type="text" id="partId" placeholder="Ej: 04.02.03.05">
-                    <label>Descripción / Nombre de Partida:</label>
-                    <input type="text" id="partDesc" placeholder="Ej: EXCAVACIÓN MANUAL DE ZANJAS">
-                    <div class="grid-2">
-                        <div>
-                            <label>Unidad Medida:</label>
-                            <input type="text" id="partUnidad" placeholder="Ej: m3, m, kg">
-                        </div>
-                        <div>
-                            <label>Jornal (Horas):</label>
-                            <input type="number" id="partJornal" value="8">
-                        </div>
-                    </div>
-                    <label>Rendimiento Diario Inicial:</label>
-                    <input type="number" id="partRendimiento" placeholder="Ej: 4.00">
-                    <button class="btn btn-success" style="width:100%; margin-top:10px;" onclick="crearPartidaMaestra()">Registrar Partida en Drive</button>
+                    <button id="btnCargarPPC" class="bg-blue-600 text-white px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-blue-700 transition shadow-sm flex items-center mr-2">
+                        🔄 <span class="hidden sm:inline ml-1">Cargar Datos</span>
+                    </button>
+
+                    <button id="btnGuardarBorradorPPC" class="hidden bg-yellow-500 text-white px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-yellow-600 transition shadow-sm items-center">
+                        💾 <span class="hidden sm:inline ml-1">Guardar Borrador</span>
+                    </button>
+
+                    <button id="btnRegistrarVersionPPC" class="hidden bg-indigo-600 text-white px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-indigo-700 transition shadow-sm items-center">
+                        🔒 <span class="hidden sm:inline ml-1">Registrar PPC</span>
+                    </button>
+                    <!-- NUEVO BOTÓN PDF -->
+                    <button id="btnExportarPDFPPC" class="bg-red-600 text-white px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-red-700 transition shadow-sm items-center flex">
+                        📄 <span class="hidden sm:inline ml-1">Exportar PDF</span>
+                    </button>
                 </div>
             </div>
-        </div>
 
+            <!-- Tabla PPC -->
+            <div id="contenedorTablaPPC" class="w-full overflow-x-auto overflow-y-auto relative custom-scrollbar transition-all" style="max-height: 60vh;">
+                <table class="table-fixed w-full min-w-max text-[11px] sm:text-xs text-center text-gray-800 border-collapse whitespace-nowrap">
+                    <thead class="text-xs text-gray-700 bg-slate-100 sticky top-0 z-20 shadow-sm">
+                        <tr class="bg-slate-200" id="trCabeceraFechasPPC">
+                            <th class="px-2 py-2 border border-slate-300 sticky left-0 z-30 bg-slate-200 w-12 sm:w-16 text-center shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">ÍNDICE</th>
+                            <th class="px-3 py-2 border border-slate-300 sticky left-[48px] sm:left-[64px] z-30 bg-slate-200 w-48 sm:w-64 text-left truncate shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">DESCRIPCIÓN DE LA ACTIVIDAD</th>
+                            <!-- JS Inyectará los 7 Días Aquí -->
+                            <th class="px-2 py-2 border border-slate-400 bg-blue-100 text-blue-900 w-16">PROG.</th>
+                            <th class="px-2 py-2 border border-slate-400 bg-green-100 text-green-900 w-16">CUMP.</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyPPC">
+                        <tr><td colspan="11" class="text-center py-10 text-gray-400 font-semibold">Selecciona una versión y haz clic en "Cargar Datos"</td></tr>
+                    </tbody>
+                    <tfoot id="tfootPPC" class="hidden sticky bottom-0 z-20 bg-slate-800 text-white shadow-[0_-2px_5px_rgba(0,0,0,0.15)] font-bold">
+                        <tr>
+                            <td colspan="2" class="px-3 py-2 text-right uppercase tracking-wider sticky left-0 bg-slate-800 z-30">Totales Generales:</td>
+                            <!-- JS inyecta celdas vacías -->
+                            <td id="lblTotalProg" class="px-2 py-2 text-center text-blue-300 border-l border-slate-600 text-sm">0</td>
+                            <td id="lblTotalCump" class="px-2 py-2 text-center text-green-400 border-l border-slate-600 text-sm">0</td>
+                        </tr>
+                        <tr>
+                            <td colspan="2" class="px-3 py-2 text-right uppercase tracking-wider sticky left-0 bg-slate-900 z-30 text-yellow-400">Indicador PPC (%):</td>
+                            <td colspan="2" id="lblPorcentajePPC" class="px-2 py-2 text-center bg-slate-900 text-yellow-400 border-l border-slate-600 text-lg">0%</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </main>
     </div>
 
-    <script>
-        // PEGA AQUÍ TU ENLACE /EXEC GENERADO POR APPS SCRIPT
-        const URL_API = "https://script.google.com/macros/s/AKfycbxObMhG2VWb2IRLTgnaXWz98egea2--B32yv7CRCus9QcrzW-VxnyDlz0o_-q-xyXrs/exec";
+    <!-- MODALES DE CREACIÓN Y EDICIÓN -->
+    <div id="modalEncabezado" class="hidden fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 transform transition-all">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                <span class="bg-slate-200 text-slate-700 px-2 py-1 rounded text-xs mr-2">Fase</span>
+                Nuevo Encabezado
+            </h3>
+            <div class="mb-5">
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Descripción del Encabezado</label>
+                <input type="text" id="txtDescEncabezado" placeholder="Ej: CIMENTACIÓN" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-slate-500 outline-none text-sm uppercase">
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button onclick="document.getElementById('modalEncabezado').classList.add('hidden')" class="px-4 py-2 text-gray-600 font-semibold text-sm hover:bg-gray-100 rounded-lg transition-colors">Cancelar</button>
+                <button id="btnGuardarEncabezado" class="px-4 py-2 bg-slate-700 text-white font-bold text-sm rounded-lg hover:bg-slate-800 transition-colors shadow-sm">Guardar</button>
+            </div>
+        </div>
+    </div>
 
-        let BD = {};
-        let usuarioLogueado = null;
-        let partidaSeleccionada = null;
+    <div id="modalActividad" class="hidden fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 transform transition-all">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                <span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs mr-2">Tarea</span>
+                Nueva Actividad
+            </h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Pertenece al Encabezado:</label>
+                    <select id="cmbPadreActividad" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50">
+                        <option value="">Seleccione un encabezado...</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Descripción de la Actividad</label>
+                    <input type="text" id="txtDescActividad" placeholder="Ej: VACIADO DE CONCRETO ZAPATAS" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm uppercase">
+                </div>
+                <div class="flex space-x-4">
+                    <div class="w-1/3">
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Unidad</label>
+                        <input type="text" id="txtUndActividad" placeholder="Ej: m3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm uppercase">
+                    </div>
+                    <div class="w-2/3">
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Subcontrata / Rubro</label>
+                        <input type="text" id="txtScActividad" placeholder="Ej: JYV" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm uppercase">
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end space-x-2 mt-6">
+                <button onclick="document.getElementById('modalActividad').classList.add('hidden')" class="px-4 py-2 text-gray-600 font-semibold text-sm hover:bg-gray-100 rounded-lg transition-colors">Cancelar</button>
+                <button id="btnGuardarActividad" class="px-4 py-2 bg-blue-600 text-white font-bold text-sm rounded-lg hover:bg-blue-700 transition-colors shadow-sm">Guardar Tarea</button>
+            </div>
+        </div>
+    </div>
 
-        window.addEventListener('DOMContentLoaded', sintonizarBD);
-
-        async function sintonizarBD() {
-            try {
-                const response = await fetch(URL_API);
-                BD = await response.json();
-                console.log("Base de datos sincronizada.");
-            } catch (error) {
-                alert("Error de red con la Base de datos.");
-            }
-        }
-
-        function autenticar() {
-            const userIn = document.getElementById('txtUser').value.trim().toLowerCase();
-            const passIn = document.getElementById('txtPass').value;
-            const usuario = BD.usuarios.find(u => u.ID_USUARIO.toLowerCase() === userIn && u.PASSWORD.toString() === passIn);
+    <div id="modalEditar" class="hidden fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 transform transition-all">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                <span class="bg-orange-100 text-orange-700 px-2 py-1 rounded text-xs mr-2">Editar</span>
+                Modificar Nombre
+            </h3>
             
-            if (usuario) {
-                usuarioLogueado = usuario;
-                document.getElementById('loginView').classList.add('hidden');
-                document.getElementById('appView').classList.remove('hidden');
-                document.getElementById('lblUsuarioActivo').innerText = `Operador: ${usuario.NOMBRE}`;
-                if (usuario.PERMISO_EDITAR.toUpperCase() === "SI") {
-                    document.getElementById('navMantenimiento').classList.remove('hidden');
-                }
-            } else {
-                document.getElementById('loginError').classList.remove('hidden');
-            }
-        }
+            <input type="hidden" id="txtEditIdActividad">
+            
+            <div class="mb-5">
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Nueva Descripción</label>
+                <input type="text" id="txtEditDesc" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none text-sm uppercase">
+            </div>
 
-        function logout() { location.reload(); }
+            <div class="flex justify-end space-x-2">
+                <button onclick="document.getElementById('modalEditar').classList.add('hidden')" class="px-4 py-2 text-gray-600 font-semibold text-sm hover:bg-gray-100 rounded-lg transition-colors">Cancelar</button>
+                <button id="btnGuardarEdicion" class="px-4 py-2 bg-orange-500 text-white font-bold text-sm rounded-lg hover:bg-orange-600 transition-colors shadow-sm">Guardar Cambios</button>
+            </div>
+        </div>
+    </div>
 
-        function cambiarVista(vista) {
-            if(vista === 'APUS') {
-                document.getElementById('viewApus').classList.remove('hidden');
-                document.getElementById('viewMantenimiento').classList.add('hidden');
-                document.getElementById('navApus').classList.add('active');
-                document.getElementById('navMantenimiento').classList.remove('active');
-            } else {
-                document.getElementById('viewApus').classList.add('hidden');
-                document.getElementById('viewMantenimiento').classList.remove('hidden');
-                document.getElementById('navApus').classList.remove('active');
-                document.getElementById('navMantenimiento').classList.add('active');
-            }
-        }
+    <div id="modalVersion" class="hidden fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 transform transition-all">
+            <h3 class="text-lg font-bold text-gray-800 mb-2 flex items-center">🔒 Registrar Versión</h3>
+            <p class="text-xs text-gray-500 mb-4">Esta acción creará una versión inalterable del Look-Ahead actual en el historial.</p>
+            <div class="mb-5">
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Comentario (Obligatorio)</label>
+                <input type="text" id="txtComentarioVersion" placeholder="Ej: Aprobado en reunión semanal" class="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none text-sm">
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button onclick="document.getElementById('modalVersion').classList.add('hidden')" class="px-4 py-2 text-gray-600 font-semibold text-sm hover:bg-gray-100 rounded-lg transition-colors">Cancelar</button>
+                <button id="btnGuardarVersion" class="px-4 py-2 bg-indigo-600 text-white font-bold text-sm rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">Confirmar Versión</button>
+            </div>
+        </div>
+    </div>
 
-        function filtrarPartidas() {
-            const busqueda = document.getElementById('txtSearch').value.toLowerCase();
-            const lista = document.getElementById('listaPartidas');
-            lista.innerHTML = "";
-            if (busqueda.length < 2) return;
+    <!-- MENÚ FLOTANTE (CONTEXTUAL) -->
+    <div id="menuProgramacion" class="hidden fixed bg-white shadow-2xl rounded-lg border border-gray-200 z-[100] w-48 overflow-hidden transform scale-95 opacity-0 transition-all duration-150 origin-top-left">
+        <ul class="text-sm text-gray-700 font-medium">
+            <li id="btnMenuAsignar" class="hover:bg-blue-50 px-4 py-2.5 cursor-pointer border-b border-gray-100 flex items-center transition-colors">
+                <span class="mr-2 text-blue-600">🎨</span> Asignar Sector
+            </li>
+            <li id="btnMenuCopiarFormato" class="hover:bg-slate-50 px-4 py-2.5 cursor-pointer border-b border-gray-100 flex items-center transition-colors">
+                <span class="mr-2 text-slate-600">🖌️</span> Copiar Formato (Solo Color)
+            </li>
+            <li id="btnMenuCopiarSector" class="hover:bg-slate-50 px-4 py-2.5 cursor-pointer border-b border-gray-100 flex items-center transition-colors">
+                <span class="mr-2 text-slate-600">📋</span> Copiar Sector (Todo)
+            </li>
+            <li id="btnMenuEliminar" class="hover:bg-red-50 px-4 py-2.5 cursor-pointer border-b border-gray-100 text-red-600 flex items-center transition-colors">
+                <span class="mr-2">🗑️</span> Limpiar Bloque
+            </li>
+            <!-- NUEVO BOTÓN MOVER -->
+            <li id="btnMenuMover" class="hover:bg-amber-50 px-4 py-2.5 cursor-pointer text-amber-600 flex items-center transition-colors font-semibold">
+                <span class="mr-2">↔️</span> Mover Bloque
+            </li>
+        </ul>
+    </div>
 
-            BD.partidas_maestro.filter(p => 
-                p.ID_PARTIDA.toString().toLowerCase().includes(busqueda) || p.DESCRIPCION.toLowerCase().includes(busqueda)
-            ).forEach(p => {
-                const li = document.createElement('li');
-                li.innerText = `${p.ID_PARTIDA} - ${p.DESCRIPCION}`;
-                li.onclick = () => cargarAPU(p.ID_PARTIDA);
-                lista.appendChild(li);
-            });
-        }
+    <!-- MODAL: ASIGNAR SECTOR -->
+    <div id="modalSector" class="hidden fixed inset-0 bg-slate-900/60 z-[110] flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-xs p-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">🎨 Asignar Sector</h3>
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Nombre del Sector</label>
+                <input type="text" id="txtNombreSector" placeholder="Ej: SECTOR 1" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm uppercase">
+            </div>
+            
+            <!-- Selector de Color Infinito -->
+            <div class="mb-6 flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700">Color del Sector</label>
+                    <span class="text-[10px] text-gray-500">Haz clic para personalizar</span>
+                </div>
+                <input type="color" id="txtColorSector" value="#3b82f6" class="w-10 h-10 border-0 rounded cursor-pointer bg-transparent">
+            </div>
 
-        function cargarAPU(idPartida) {
-            document.getElementById('listaPartidas').innerHTML = "";
-            document.getElementById('txtSearch').value = "";
-            const maestro = BD.partidas_maestro.find(p => p.ID_PARTIDA.toString() === idPartida.toString());
-            partidaSeleccionada = maestro;
+            <div class="flex justify-end space-x-2">
+                <button onclick="document.getElementById('modalSector').classList.add('hidden')" class="px-4 py-2 text-gray-600 font-semibold text-sm hover:bg-gray-100 rounded-lg">Cancelar</button>
+                <button id="btnConfirmarSector" class="px-4 py-2 bg-blue-600 text-white font-bold text-sm rounded-lg hover:bg-blue-700 shadow-sm">Aplicar</button>
+            </div>
+        </div>
+    </div>
 
-            document.getElementById('apuCodigo').innerText = `PARTIDA: ${maestro.ID_PARTIDA}`;
-            document.getElementById('apuDescripcion').innerText = maestro.DESCRIPCION;
-            document.getElementById('apuUnidad').innerText = maestro.UNIDAD;
-            document.getElementById('apuRendimiento').innerText = parseFloat(maestro.RENDIMIENTO).toFixed(2);
-            document.getElementById('apuJornal').innerText = maestro.JORNAL;
-            document.getElementById('numNuevoRendimiento').value = maestro.RENDIMIENTO;
+    <!-- BANNER MODO PEGAR FORMATO -->
+    <div id="bannerModoPegado" class="hidden fixed top-4 left-1/2 transform -translate-x-1/2 z-[100] bg-indigo-600 text-white px-5 py-2.5 rounded-full shadow-2xl font-bold text-sm flex items-center animate-bounce">
+        <span>🖌️ Haz clic en el sector (origen) que deseas copiar...</span>
+        <button onclick="cancelarModoPegado()" class="ml-4 text-indigo-200 hover:text-white transition-colors">✕ Cancelar</button>
+    </div>
 
-            if (usuarioLogueado.PERMISO_EDITAR.toUpperCase() === "SI") {
-                document.getElementById('editorRapidoPanel').classList.remove('hidden');
-                document.getElementById('agregarInsumoApuPanel').classList.remove('hidden');
-                cargarComboInsumosDisponibles();
-            }
+    <!-- BANNER MODO MOVER BLOQUE -->
+    <div id="bannerModoMover" class="hidden fixed top-4 left-1/2 transform -translate-x-1/2 z-[100] bg-amber-500 text-white px-5 py-2.5 rounded-full shadow-2xl font-bold text-sm flex items-center animate-bounce">
+        <span>↔️ Haz clic en el día destino (misma fila) para desplazar...</span>
+        <button onclick="cancelarModoMover()" class="ml-4 text-amber-200 hover:text-white transition-colors">✕ Cancelar</button>
+    </div>
 
-            const detalles = BD.partidas_detalle.filter(d => d.ID_PARTIDA.toString() === idPartida.toString());
-            const tbody = document.getElementById('apuCuerpo');
-            tbody.innerHTML = "";
+    <!-- MODAL CONFIRMAR PEGADO -->
+    <div id="modalConfirmarPegado" class="hidden fixed inset-0 bg-slate-900/60 z-[110] flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 text-center transform transition-all">
+            <h3 class="text-lg font-bold text-gray-800 mb-2">Pegar Formato de Sector</h3>
+            <p class="text-sm text-gray-600 mb-4">¿Deseas aplicar este sector a las celdas que acabas de seleccionar?</p>
+            
+            <div class="flex items-center justify-center space-x-3 mb-6 bg-slate-50 py-3 rounded-lg border border-slate-200">
+                <div id="colorPegadoPrevia" class="w-6 h-6 rounded shadow-sm border border-gray-300"></div>
+                <span id="lblSectorPegado" class="font-bold text-gray-800 uppercase tracking-wide"></span>
+            </div>
 
-            let subtotalMO = 0;
-            let costoDirectoTotal = 0;
-            let filaHerramientas = null;
+            <div class="flex justify-center space-x-2">
+                <button onclick="cancelarModoPegado()" class="px-4 py-2 text-gray-600 font-semibold text-sm hover:bg-gray-100 rounded-lg">Cancelar</button>
+                <button id="btnConfirmarPegado" class="px-4 py-2 bg-indigo-600 text-white font-bold text-sm rounded-lg hover:bg-indigo-700 shadow-sm">Aplicar Formato</button>
+            </div>
+        </div>
+    </div>
 
-            detalles.forEach(d => {
-                let insumo = null;
-                if (d.TIPO_INSUMO === "MAT") insumo = BD.materiales.find(m => m.ID_MAT.toString() === d.ID_INSUMO.toString());
-                else if (d.TIPO_INSUMO === "MO") insumo = BD.mano_de_obra.find(m => m.ID_MO.toString() === d.ID_INSUMO.toString());
-                else if (d.TIPO_INSUMO === "EQ") insumo = BD.equipos.find(m => m.ID_EQ.toString() === d.ID_INSUMO.toString());
+    <!-- MODAL: CONFIGURAR SEMANAS -->
+    <div id="modalConfigSemanas" class="hidden fixed inset-0 bg-slate-900/60 z-[110] flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-2 flex items-center">🗓️ Rango de Semanas</h3>
+            <p class="text-xs text-gray-500 mb-4">Define en qué momento de la obra arranca este Look-Ahead.</p>
+            
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Fecha de Inicio (Debe ser un Lunes)</label>
+                <input type="date" id="txtFechaLunes" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-semibold text-gray-700">
+            </div>
+            <div class="mb-5">
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Semana de Obra (Ej: 1, 10, 24)</label>
+                <input type="number" id="txtSemanaInicio" placeholder="Ej: 1" value="1" min="1" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-semibold text-gray-700">
+            </div>
+            
+            <div class="flex justify-end space-x-2">
+                <button onclick="document.getElementById('modalConfigSemanas').classList.add('hidden')" class="px-4 py-2 text-gray-600 font-semibold text-sm hover:bg-gray-100 rounded-lg">Cancelar</button>
+                <button id="btnGuardarConfigSemanas" class="px-4 py-2 bg-indigo-600 text-white font-bold text-sm rounded-lg hover:bg-indigo-700 shadow-sm">Guardar y Recalcular</button>
+            </div>
+        </div>
+    </div>
 
-                if (!insumo) return;
-                if (insumo.UNIDAD === "%MO") { filaHerramientas = { d, insumo }; return; }
+    <!-- MODAL: CAUSA DE NO CUMPLIMIENTO (CNC) -->
+    <div id="modalCNC" class="hidden fixed inset-0 bg-slate-900/60 z-[110] flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
+            <h3 class="text-lg font-bold text-red-600 mb-2 flex items-center">⚠️ No Cumplido</h3>
+            <p class="text-xs text-gray-500 mb-4">Selecciona el motivo por el cual no se cumplió esta actividad.</p>
+            
+            <div class="mb-3">
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Causa de No Cumplimiento (CNC)</label>
+                <select id="cmbListaCNC" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none text-sm font-semibold text-gray-700 bg-slate-50">
+                    <option value="">Cargando causas...</option>
+                </select>
+            </div>
 
-                let precioSinIgv = parseFloat(insumo["PRECIO S/IGV"]) || 0;
-                let cantidad = parseFloat(d.CDRLL_O_CANT);
-                if (d.TIPO_INSUMO === "MO" || (d.TIPO_INSUMO === "EQ" && insumo.UNIDAD !== "GLB")) {
-                    cantidad = (cantidad * parseFloat(maestro.JORNAL)) / parseFloat(maestro.RENDIMIENTO);
-                }
-                let parcial = cantidad * precioSinIgv;
-                if (d.TIPO_INSUMO === "MO") subtotalMO += parcial;
-                costoDirectoTotal += parcial;
+            <div class="mb-5">
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Observación (Opcional)</label>
+                <input type="text" id="txtObservacionCNC" placeholder="Detalle adicional..." class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none text-sm text-gray-700">
+            </div>
+            
+            <div class="flex justify-end space-x-2">
+                <button onclick="document.getElementById('modalCNC').classList.add('hidden')" class="px-4 py-2 text-gray-600 font-semibold text-sm hover:bg-gray-100 rounded-lg">Cancelar</button>
+                <button id="btnConfirmarCNC" class="px-4 py-2 bg-red-600 text-white font-bold text-sm rounded-lg hover:bg-red-700 shadow-sm">Aplicar Achurado</button>
+            </div>
+        </div>
+    </div>
 
-                renderFila(d.ID_INSUMO, insumo.DESCRIPCION, insumo.UNIDAD, d.TIPO_INSUMO === "MAT" ? "-" : d.CDRLL_O_CANT, cantidad, precioSinIgv, parcial, insumo.LINK || "");
-            });
+    <!-- MODAL: REGISTRAR VERSIÓN PPC -->
+    <div id="modalVersionPPC" class="hidden fixed inset-0 bg-slate-900/60 z-[110] flex items-center justify-center backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 transform transition-all">
+            <h3 class="text-lg font-bold text-gray-800 mb-2 flex items-center">🔒 Cerrar Semana PPC</h3>
+            <p class="text-xs text-gray-500 mb-4">Se creará un archivo congelado con los resultados finales de esta semana.</p>
+            <div class="mb-5">
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Comentario / Resumen</label>
+                <input type="text" id="txtComentarioVersionPPC" placeholder="Ej: Cierre de Semana 1 completo" class="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none text-sm">
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button onclick="document.getElementById('modalVersionPPC').classList.add('hidden')" class="px-4 py-2 text-gray-600 font-semibold text-sm hover:bg-gray-100 rounded-lg transition-colors">Cancelar</button>
+                <button id="btnGuardarVersionPPC" class="px-4 py-2 bg-indigo-600 text-white font-bold text-sm rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">Confirmar y Guardar</button>
+            </div>
+        </div>
+    </div>
 
-            if (filaHerramientas) {
-                let porcentaje = parseFloat(filaHerramientas.d.CDRLL_O_CANT) / 100;
-                let parcialHM = subtotalMO * porcentaje;
-                costoDirectoTotal += parcialHM;
-                renderFila(filaHerramientas.d.ID_INSUMO, filaHerramientas.insumo.DESCRIPCION, "%MO", "-", filaHerramientas.d.CDRLL_O_CANT, subtotalMO, parcialHM, "");
-            }
-
-            document.getElementById('apuTotalDirecto').innerText = `S/ ${costoDirectoTotal.toFixed(2)}`;
-            document.getElementById('workspaceView').classList.remove('hidden');
-        }
-
-        function renderFila(codigo, desc, und, cuadrilla, cantidad, precio, parcial, link) {
-            let linkHtml = link ? `<br><a href="${link}" target="_blank" style="color:#007bff; font-size:11px;">Link Referencia 🔗</a>` : '';
-            document.getElementById('apuCuerpo').innerHTML += `
-                <tr>
-                    <td>${codigo}</td>
-                    <td><strong>${desc}</strong>${linkHtml}</td>
-                    <td>${und}</td>
-                    <td>${cuadrilla}</td>
-                    <td>${und === "%MO" ? parseFloat(cantidad).toFixed(1) : parseFloat(cantidad).toFixed(4)}</td>
-                    <td>S/ ${parseFloat(precio).toFixed(2)}</td>
-                    <td style="font-weight:600;">S/ ${parseFloat(parcial).toFixed(2)}</td>
-                </tr>`;
-        }
-
-        function cargarComboInsumosDisponibles() {
-            const tipo = document.getElementById('selTipoAsociar').value;
-            const combo = document.getElementById('selInsumoAsociar');
-            combo.innerHTML = "";
-            let coleccion = [];
-
-            if(tipo === "MAT") coleccion = BD.materiales.map(i => ({id: i.ID_MAT, desc: i.DESCRIPCION}));
-            else if(tipo === "MO") coleccion = BD.mano_de_obra.map(i => ({id: i.ID_MO, desc: i.DESCRIPCION}));
-            else if(tipo === "EQ") coleccion = BD.equipos.map(i => ({id: i.ID_EQ, desc: i.DESCRIPCION}));
-
-            coleccion.forEach(ins => {
-                combo.innerHTML += `<option value="${ins.id}">${ins.id} - ${ins.desc}</option>`;
-            });
-        }
-
-        function calcularPrecioSIgvForm() {
-            const conIgv = parseFloat(document.getElementById('insPrecioCIgv').value) || 0;
-            document.getElementById('insPrecioSIgv').value = (conIgv / 1.18).toFixed(4);
-        }
-
-        async function enviarComandoAPI(payload, mensajeExito, callbackAccion) {
-            try {
-                await fetch(URL_API, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                alert(mensajeExito + " (Sincronizando con Google Sheets...)");
-                if(callbackAccion) callbackAccion();
-                await sintonizarBD(); 
-            } catch (error) { alert("Error al guardar en Drive."); }
-        }
-
-        function guardarCambiosRendimiento() {
-            const nuevoRend = document.getElementById('numNuevoRendimiento').value;
-            const payload = { usuario: usuarioLogueado.ID_USUARIO, password: usuarioLogueado.PASSWORD, accion: "EDITAR_RENDIMIENTO", id_partida: partidaSeleccionada.ID_PARTIDA, nuevo_rendimiento: nuevoRend };
-            enviarComandoAPI(payload, "Rendimiento actualizado.", () => {
-                partidaSeleccionada.RENDIMIENTO = nuevoRend;
-                cargarAPU(partidaSeleccionada.ID_PARTIDA);
-            });
-        }
-
-        function asociarRecursoAPU() {
-            const tipo = document.getElementById('selTipoAsociar').value;
-            const idIns = document.getElementById('selInsumoAsociar').value;
-            const cant = document.getElementById('numCantAsociar').value;
-            if(!cant || cant <= 0) return alert("Ingrese una cantidad o cuadrilla válida.");
-
-            const payload = { usuario: usuarioLogueado.ID_USUARIO, password: usuarioLogueado.PASSWORD, accion: "ASOCIAR_INSUMO_APU", id_partida: partidaSeleccionada.ID_PARTIDA, tipo_insumo: tipo, id_insumo: idIns, cdrll_o_cant: cant };
-            enviarComandoAPI(payload, "Recurso añadido al APU de manera exitosa.", () => {
-                BD.partidas_detalle.push({ ID_PARTIDA: partidaSeleccionada.ID_PARTIDA, TIPO_INSUMO: tipo, ID_INSUMO: idIns, CDRLL_O_CANT: cant });
-                setTimeout(() => cargarAPU(partidaSeleccionada.ID_PARTIDA), 1500);
-            });
-        }
-
-        function crearInsumoMaestro() {
-            const tipo = document.getElementById('insTipo').value;
-            const id = document.getElementById('insId').value.trim();
-            const desc = document.getElementById('insDesc').value.trim().toUpperCase();
-            const und = document.getElementById('insUnidad').value.trim();
-            const pCIgv = document.getElementById('insPrecioCIgv').value || 0;
-            const pSIgv = document.getElementById('insPrecioSIgv').value || 0;
-            const link = document.getElementById('insLink').value.trim();
-
-            if(!id || !desc || !und) return alert("Complete los campos obligatorios (ID, Descripción y Unidad).");
-
-            const payload = { usuario: usuarioLogueado.ID_USUARIO, password: usuarioLogueado.PASSWORD, accion: "CREAR_INSUMO", tipo, id, descripcion: desc, unidad: und, precio_c_igv: pCIgv, precio_s_igv: pSIgv, link };
-            enviarComandoAPI(payload, `Insumo ${id} registrado en el maestro.`, () => {
-                const filaLocal = { DESCRIPCION: desc, UNIDAD: und, "PRECIO S/IGV": pSIgv, LINK: link };
-                if(tipo === "MAT") { filaLocal.ID_MAT = id; filaLocal["PRECIO C/IGV"] = pCIgv; BD.materiales.push(filaLocal); }
-                else if(tipo === "MO") { filaLocal.ID_MO = id; BD.mano_de_obra.push(filaLocal); }
-                else if(tipo === "EQ") { filaLocal.ID_EQ = id; filaLocal["PRECIO C/IGV"] = pCIgv; BD.equipos.push(filaLocal); }
-                limpiarCamposInsumo();
-            });
-        }
-
-        function crearPartidaMaestra() {
-            const id = document.getElementById('partId').value.trim();
-            const desc = document.getElementById('partDesc').value.trim().toUpperCase();
-            const und = document.getElementById('partUnidad').value.trim();
-            const jornal = document.getElementById('partJornal').value;
-            const rend = document.getElementById('partRendimiento').value;
-
-            if(!id || !desc || !und || !rend) return alert("Complete todos los campos de la partida.");
-
-            const payload = { usuario: usuarioLogueado.ID_USUARIO, password: usuarioLogueado.PASSWORD, accion: "CREAR_PARTIDA", id_partida: id, descripcion: desc, unidad: und, jornal, rendimiento: rend };
-            enviarComandoAPI(payload, `Partida ${id} creada con éxito. Ya puedes buscarla y asignarle recursos.`, () => {
-                BD.partidas_maestro.push({ ID_PARTIDA: id, DESCRIPCION: desc, UNIDAD: und, JORNAL: jornal, RENDIMIENTO: rend });
-                document.getElementById('partId').value = ""; document.getElementById('partDesc').value = ""; document.getElementById('partUnidad').value = ""; document.getElementById('partRendimiento').value = "";
-                cambiarVista('APUS');
-            });
-        }
-
-        function limpiarCamposInsumo() {
-            document.getElementById('insId').value = ""; document.getElementById('insDesc').value = ""; document.getElementById('insUnidad').value = "";
-            document.getElementById('insPrecioCIgv').value = ""; document.getElementById('insPrecioSIgv').value = ""; document.getElementById('insLink').value = "";
-        }
-    </script>
+    <!-- Conexion a la Base de Datos y API -->
+    <script src="assets/js/database/config.js"></script>
+    <script src="assets/js/services/api.js"></script>
+    
+    <!-- Logica de la Interfaz -->
+    <script src="assets/js/auth/session.js"></script>
+    <script src="assets/js/core/dashboard.js"></script>
+    <script src="assets/js/core/lookahead.js"></script>
+    <script src="assets/js/core/ppc.js"></script>
+    
 </body>
 </html>
