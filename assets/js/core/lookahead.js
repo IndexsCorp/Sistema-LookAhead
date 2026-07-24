@@ -1,24 +1,6 @@
-    let currentSheetsId = "";
-    let memoriaCache = [];
-    let memoriaProgramacion = [];
-    let fechasSemanales = [];
-    let fechasRangoActivo = [];
-    let sortableInstancia = null;
-    let configProyecto = { fechaLunesBase: null, semanaInicio: 1 };
 
-    let memoriaHistorial1 = null;
-    let memoriaHistorial2 = null;
-    let listaVersionesGlobal = [];
-    let modoComparativoActivo = false;
 
-    // 🟢 PERMISOS GLOBALES
-    let rolGlobalReal = "RESIDENTE";
-    let puedeEditarSectores = true;
-    let puedeEditarEstructura = true;
-    let rolRenderizadoActual = "RESIDENTE";
 
-    let isDraggingSelect = false;
-    let dragSelectValue = true;
 
     function obtenerColorTextoContraste(bgColor) {
         if (!bgColor) return '#ffffff';
@@ -53,7 +35,7 @@
     // 1. CARGA INICIAL Y PERMISOS
     // ---------------------------------------------------------
     async function cargarLookAhead(sheetsId) {
-        currentSheetsId = sheetsId;
+        AppState.currentSheetsId = sheetsId;
         const tbody = document.getElementById('tbodyLookAhead');
         document.getElementById('btnGuardarOrden').classList.add('hidden');
         document.getElementById('btnGuardarOrden').classList.remove('flex');
@@ -63,26 +45,26 @@
         try {
             const respuesta = await API.obtenerDatosLookAhead(sheetsId);
             if (respuesta.success) {
-                memoriaCache = respuesta.actividades.map(act => ({ ...act, estado: 'ACTIVO' }));
-                memoriaProgramacion = respuesta.programacion || [];
-                configProyecto = respuesta.configuracion || { fechaLunesBase: null, semanaInicio: 1 };
+                AppState.memoriaCache = respuesta.actividades.map(act => ({ ...act, estado: 'ACTIVO' }));
+                AppState.memoriaProgramacion = respuesta.programacion || [];
+                AppState.configProyecto = respuesta.configuracion || { fechaLunesBase: null, semanaInicio: 1 };
 
                 const sessionData = JSON.parse(sessionStorage.getItem('usuarioActivo'));
-                if (sessionData) rolGlobalReal = sessionData.rol;
+                if (sessionData) AppState.rolGlobalReal = sessionData.rol;
 
                 // 🟢 ASIGNACIÓN ESTRICTA DE PERMISOS
-                puedeEditarSectores = !["STAFF", "SC", "RUBRO"].includes(rolGlobalReal);
-                puedeEditarEstructura = !["SC", "RUBRO"].includes(rolGlobalReal);
+                AppState.puedeEditarSectores = !["STAFF", "SC", "RUBRO"].includes(AppState.rolGlobalReal);
+                AppState.puedeEditarEstructura = !["SC", "RUBRO"].includes(AppState.rolGlobalReal);
 
                 // Solo el ADMIN puede cambiar de rol simulado
-                if (rolGlobalReal === "ADMIN") {
+                if (AppState.rolGlobalReal === "ADMIN") {
                     document.getElementById('cmbRolSimulado').classList.remove('hidden');
                 }
 
                 aplicarPermisosUI();
                 inicializarSelectorMultiples();
 
-                listaVersionesGlobal = respuesta.versions || respuesta.versiones || [];
+                AppState.listaVersionesGlobal = respuesta.versions || respuesta.versiones || [];
                 llenarDropdownsVersiones();
                 renderizarAmbasTablas();
 
@@ -101,13 +83,13 @@
         const btnAddEnc = document.getElementById('btnAbrirEncabezado') || document.querySelector('button[onclick*="modalEncabezado"]');
         const btnAddAct = document.getElementById('btnAbrirActividad') || document.querySelector('button[onclick*="modalActividad"]');
 
-        if (["SC", "RUBRO"].includes(rolGlobalReal)) {
+        if (["SC", "RUBRO"].includes(AppState.rolGlobalReal)) {
             if (btnComparar) btnComparar.style.display = 'none';
             if (btnConfig) btnConfig.style.display = 'none';
             if (btnRegVer) btnRegVer.style.display = 'none';
             if (btnAddEnc) btnAddEnc.style.display = 'none';
             if (btnAddAct) btnAddAct.style.display = 'none';
-        } else if (rolGlobalReal === "STAFF") {
+        } else if (AppState.rolGlobalReal === "STAFF") {
             if (btnConfig) btnConfig.style.display = 'none';
             if (btnRegVer) btnRegVer.style.display = 'none';
         }
@@ -117,11 +99,11 @@
     // 1.5 MEMORIA FOTOGRÁFICA
     // ---------------------------------------------------------
     function guardarProgramacionTemporal() {
-        if (!puedeEditarSectores) return; // 🟢 Bloqueo extra por seguridad
+        if (!AppState.puedeEditarSectores) return; // 🟢 Bloqueo extra por seguridad
         const celdas = document.querySelectorAll('.celda-prog');
         if (celdas.length === 0) return;
 
-        let rolActivo = rolRenderizadoActual;
+        let rolActivo = AppState.rolRenderizadoActual;
         if (rolActivo === "COMPARATIVO") return;
 
         let fechasEnPantalla = [];
@@ -130,7 +112,7 @@
             if (f && !fechasEnPantalla.includes(f)) fechasEnPantalla.push(f);
         });
 
-        let nuevaMemoria = memoriaProgramacion.filter(p => {
+        let nuevaMemoria = AppState.memoriaProgramacion.filter(p => {
             let esDeEstaSemana = fechasEnPantalla.includes(p.fecha);
             let esDeEsteRol = String(p.rol).trim().toUpperCase() === String(rolActivo).trim().toUpperCase();
             return !(esDeEstaSemana && esDeEsteRol);
@@ -153,7 +135,7 @@
             }
         });
 
-        memoriaProgramacion = nuevaMemoria;
+        AppState.memoriaProgramacion = nuevaMemoria;
     }
 
     // =========================================================
@@ -164,7 +146,7 @@
         const cmb1 = document.getElementById('cmbHistorialVersiones');
         const cmb2 = document.getElementById('cmbHistorialVersiones2');
 
-        let semInicio = parseInt(configProyecto.semanaInicio) || 1;
+        let semInicio = parseInt(AppState.configProyecto.semanaInicio) || 1;
         let rangoActual = `Sem ${semInicio}-${semInicio + 3}`;
 
         // Combo Principal (Izquierda)
@@ -173,11 +155,11 @@
         // Combo Comparativo (Derecha) - 🟢 RESTRINGIDO POR ROL
         let htmlOpciones2 = '';
         
-        if (rolGlobalReal === "ADMIN") {
+        if (AppState.rolGlobalReal === "ADMIN") {
             // Admin ve el "En vivo" de ambos
             htmlOpciones2 += `<option value="ACTUAL_RESIDENTE" data-rango="${rangoActual}" class="font-bold text-blue-700">Versión Actual (RESIDENTE)</option>`;
             htmlOpciones2 += `<option value="ACTUAL_SUPERVISION" data-rango="${rangoActual}" class="font-bold text-purple-700">Versión Actual (SUPERVISION)</option>`;
-        } else if (rolGlobalReal === "SUPERVISION") {
+        } else if (AppState.rolGlobalReal === "SUPERVISION") {
             // Supervisión solo ve su propio "En vivo"
             htmlOpciones2 += `<option value="ACTUAL_SUPERVISION" data-rango="${rangoActual}" class="font-bold text-purple-700">Mi Versión Actual</option>`;
         } else {
@@ -186,7 +168,7 @@
         }
 
         // Historial cerrado (Todos ven todo)
-        [...listaVersionesGlobal].reverse().forEach(v => {
+        [...AppState.listaVersionesGlobal].reverse().forEach(v => {
             let textoRango = v.rango ? `${v.rango} - ` : "";
             let textoRol = v.rol ? ` - ${v.rol}` : "";
             
@@ -228,17 +210,17 @@
         const btnGuardar = document.getElementById('btnGuardarOrden');
 
         if (val === "ACTUAL") {
-            memoriaHistorial1 = null;
-            if (btnGuardar && puedeEditarEstructura) { btnGuardar.classList.remove('hidden'); btnGuardar.classList.add('flex'); }
+            AppState.memoriaHistorial1 = null;
+            if (btnGuardar && AppState.puedeEditarEstructura) { btnGuardar.classList.remove('hidden'); btnGuardar.classList.add('flex'); }
         } else {
             document.getElementById('tbodyLookAhead').innerHTML = `<tr><td colspan="12" class="text-center py-10 text-indigo-500 animate-pulse">Viajando a la ${val}...</td></tr>`;
             if (btnGuardar) { btnGuardar.classList.add('hidden'); btnGuardar.classList.remove('flex'); }
             try {
-                const res = await API.obtenerVersionAntigua(currentSheetsId, val);
-                if (res.success) memoriaHistorial1 = res.actividades; else throw new Error();
+                const res = await API.obtenerVersionAntigua(AppState.currentSheetsId, val);
+                if (res.success) AppState.memoriaHistorial1 = res.actividades; else throw new Error();
             } catch (e) {
-                e.target.value = "ACTUAL"; memoriaHistorial1 = null;
-                if (btnGuardar && puedeEditarEstructura) { btnGuardar.classList.remove('hidden'); btnGuardar.classList.add('flex'); }
+                e.target.value = "ACTUAL"; AppState.memoriaHistorial1 = null;
+                if (btnGuardar && AppState.puedeEditarEstructura) { btnGuardar.classList.remove('hidden'); btnGuardar.classList.add('flex'); }
             }
         }
         // Eliminado la funcion filtrarDropdown2
@@ -249,22 +231,22 @@
     document.getElementById('cmbHistorialVersiones2').addEventListener('change', async (e) => {
         const val = e.target.value;
         if (val.startsWith("ACTUAL")) {
-            memoriaHistorial2 = null;
+            AppState.memoriaHistorial2 = null;
         } else {
             document.getElementById('tbodyLookAheadSup').innerHTML = `<tr><td colspan="12" class="text-center py-10 text-purple-500 animate-pulse">Viajando a la ${val}...</td></tr>`;
             try {
-                const res = await API.obtenerVersionAntigua(currentSheetsId, val);
-                if (res.success) memoriaHistorial2 = res.actividades; else throw new Error();
+                const res = await API.obtenerVersionAntigua(AppState.currentSheetsId, val);
+                if (res.success) AppState.memoriaHistorial2 = res.actividades; else throw new Error();
             } catch (e) {
                 e.target.selectedIndex = 0; 
-                memoriaHistorial2 = null;
+                AppState.memoriaHistorial2 = null;
             }
         }
         renderizarAmbasTablas();
     });
 
     function toggleModoComparativo() {
-        modoComparativoActivo = !modoComparativoActivo;
+        AppState.modoComparativoActivo = !AppState.modoComparativoActivo;
         const btn = document.getElementById('btnToggleComparativo');
         const contPrincipal = document.getElementById('contenedorLookAhead');
         const contSecundario = document.getElementById('contenedorSecundario');
@@ -273,7 +255,7 @@
 
         if (document.getElementById('cmbHistorialVersiones').value === "ACTUAL") guardarProgramacionTemporal();
 
-        if (modoComparativoActivo) {
+        if (AppState.modoComparativoActivo) {
             btn.classList.replace('bg-teal-600', 'bg-red-500'); btn.classList.replace('hover:bg-teal-700', 'hover:bg-red-600');
             btn.innerHTML = `❌ <span class="hidden sm:inline ml-1">Cerrar Comparativo</span>`;
 
@@ -315,29 +297,29 @@
         const trCabeceraSup = document.getElementById('trCabeceraFechasSup');
         document.querySelectorAll('.th-fecha').forEach(th => th.remove());
 
-        if (!configProyecto.fechaLunesBase) {
+        if (!AppState.configProyecto.fechaLunesBase) {
             trCabecera.innerHTML += `<th colspan="7" class="th-fecha px-2 py-4 bg-red-50 text-red-600 font-bold border border-slate-300">⚠️ Configura el Rango primero.</th>`;
             return;
         }
 
-        let dInicioRango = new Date(configProyecto.fechaLunesBase + "T00:00:00");
-        fechasRangoActivo = [];
+        let dInicioRango = new Date(AppState.configProyecto.fechaLunesBase + "T00:00:00");
+        AppState.fechasRangoActivo = [];
         for (let i = 0; i < 28; i++) {
             let f = new Date(dInicioRango); f.setDate(dInicioRango.getDate() + i);
-            fechasRangoActivo.push(`${String(f.getDate()).padStart(2, '0')}/${String(f.getMonth() + 1).padStart(2, '0')}/${f.getFullYear()}`);
+            AppState.fechasRangoActivo.push(`${String(f.getDate()).padStart(2, '0')}/${String(f.getMonth() + 1).padStart(2, '0')}/${f.getFullYear()}`);
         }
 
-        let dLunesBase = new Date(configProyecto.fechaLunesBase + "T00:00:00");
+        let dLunesBase = new Date(AppState.configProyecto.fechaLunesBase + "T00:00:00");
         dLunesBase.setDate(dLunesBase.getDate() + ((semanaActiva - 1) * 7));
 
         const diasNombres = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
         const mesesNombres = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
         let dateHoy = new Date(); dateHoy.setHours(0, 0, 0, 0);
 
-        fechasSemanales = [];
+        AppState.fechasSemanales = [];
         for (let i = 0; i < 7; i++) {
             let f = new Date(dLunesBase); f.setDate(dLunesBase.getDate() + i);
-            fechasSemanales.push(`${String(f.getDate()).padStart(2, '0')}/${String(f.getMonth() + 1).padStart(2, '0')}/${f.getFullYear()}`);
+            AppState.fechasSemanales.push(`${String(f.getDate()).padStart(2, '0')}/${String(f.getMonth() + 1).padStart(2, '0')}/${f.getFullYear()}`);
 
             let esHoy = (f.getTime() === dateHoy.getTime());
             let diaStr = `${f.getDate()}-${mesesNombres[f.getMonth()]}`;
@@ -349,12 +331,12 @@
             if (trCabeceraSup) trCabeceraSup.innerHTML += thHTML;
         }
 
-        let semInicio = parseInt(configProyecto.semanaInicio) || 1;
+        let semInicio = parseInt(AppState.configProyecto.semanaInicio) || 1;
         for (let w = 1; w <= 4; w++) {
             let btn = document.getElementById(`btnSemana${w}`);
             if (btn) {
                 let numeroReal = semInicio + w - 1;
-                let inicioEstaSemana = new Date(configProyecto.fechaLunesBase + "T00:00:00");
+                let inicioEstaSemana = new Date(AppState.configProyecto.fechaLunesBase + "T00:00:00");
                 inicioEstaSemana.setDate(inicioEstaSemana.getDate() + ((w - 1) * 7));
                 let finEstaSemana = new Date(inicioEstaSemana); finEstaSemana.setDate(finEstaSemana.getDate() + 6);
                 let colorFecha = (w === semanaActiva) ? 'text-blue-600' : 'text-gray-400';
@@ -375,7 +357,7 @@
             let cmbEl = document.getElementById(esTabla1 ? 'cmbHistorialVersiones' : 'cmbHistorialVersiones2');
             
             // Valor por defecto seguro dependiendo del combo
-            let fallbackSecundario = rolGlobalReal === "SUPERVISION" ? "ACTUAL_SUPERVISION" : "ACTUAL_RESIDENTE";
+            let fallbackSecundario = AppState.rolGlobalReal === "SUPERVISION" ? "ACTUAL_SUPERVISION" : "ACTUAL_RESIDENTE";
             let valCmb = cmbEl ? cmbEl.value : (esTabla1 ? "ACTUAL" : fallbackSecundario);
             
             let esLectura = esTabla1 ? (valCmb !== "ACTUAL") : !valCmb.startsWith("ACTUAL");
@@ -384,21 +366,21 @@
 
             // 🟢 DETERMINAR EL ROL DE LA TABLA PRINCIPAL
             let rolMiSesion = "RESIDENTE";
-            if (rolGlobalReal === "ADMIN") {
+            if (AppState.rolGlobalReal === "ADMIN") {
                 let cmbRol = document.getElementById('cmbRolSimulado');
                 rolMiSesion = cmbRol ? cmbRol.value : "RESIDENTE";
-            } else if (["STAFF", "SC", "RUBRO"].includes(rolGlobalReal)) {
+            } else if (["STAFF", "SC", "RUBRO"].includes(AppState.rolGlobalReal)) {
                 rolMiSesion = "RESIDENTE";
             } else {
-                rolMiSesion = rolGlobalReal;
+                rolMiSesion = AppState.rolGlobalReal;
             }
 
-            if (esTabla1) rolRenderizadoActual = rolMiSesion;
+            if (esTabla1) AppState.rolRenderizadoActual = rolMiSesion;
 
             // Extraer Datos Vivos vs Datos Históricos
             if (!esLectura) {
-                dataAct = memoriaCache.filter(a => a.estado !== 'ELIMINADO');
-                dataProg = memoriaProgramacion;
+                dataAct = AppState.memoriaCache.filter(a => a.estado !== 'ELIMINADO');
+                dataProg = AppState.memoriaProgramacion;
                 
                 if (esTabla1) {
                     rolAUsar = rolMiSesion;
@@ -407,11 +389,11 @@
                 }
                 titulo = `PLANIFICACIÓN: ${rolAUsar} (VERSIÓN ACTUAL)`;
             } else {
-                let memH = esTabla1 ? memoriaHistorial1 : memoriaHistorial2;
+                let memH = esTabla1 ? AppState.memoriaHistorial1 : AppState.memoriaHistorial2;
                 if (!memH) return;
                 dataAct = Array.isArray(memH) ? memH : (memH.actividades || []);
                 dataProg = memH.programacion || [];
-                let vInfo = listaVersionesGlobal.find(v => v.numero === valCmb);
+                let vInfo = AppState.listaVersionesGlobal.find(v => v.numero === valCmb);
                 rolAUsar = (vInfo && vInfo.rol) ? String(vInfo.rol).trim().toUpperCase() : "RESIDENTE";
                 titulo = `PLANIFICACIÓN: ${rolAUsar} (${valCmb})`;
             }
@@ -434,8 +416,8 @@
                 html = `<tr><td colspan="12" class="text-center py-10 text-slate-500">Sin datos.</td></tr>`;
             } else {
                 // 🟢 CANDADOS DE EDICIÓN Y BLOQUEO VISUAL
-                let puedeEditarEstaVista = esTabla1 && !esLectura && puedeEditarSectores;
-                let ocultarEdicion = !puedeEditarEstructura || !puedeEditarEstaVista;
+                let puedeEditarEstaVista = esTabla1 && !esLectura && AppState.puedeEditarSectores;
+                let ocultarEdicion = !AppState.puedeEditarEstructura || !puedeEditarEstaVista;
 
                 let spanDragAct = ocultarEdicion ? '' : `<span class="cursor-move text-gray-400 mr-2 hover:text-gray-600 px-1 drag-handle">☰</span>`;
                 let spanDragEnc = ocultarEdicion ? '' : `<span class="cursor-move text-yellow-700 mr-2 hover:text-yellow-900 px-1 drag-handle">☰</span>`;
@@ -453,7 +435,7 @@
                         }
                     } else {
                         let celdas = [0, 1, 2, 3, 4, 5, 6].map(dia => {
-                            let fStr = fechasSemanales[dia];
+                            let fStr = AppState.fechasSemanales[dia];
                             let p = dataProg.find(x =>
                                 String(x.idActividad).trim() === String(act.id).trim() &&
                                 normFecha(x.fecha) === normFecha(fStr) &&
@@ -483,19 +465,19 @@
         };
 
         dibujar(tbody1, true);
-        if (modoComparativoActivo) dibujar(tbody2, false);
+        if (AppState.modoComparativoActivo) dibujar(tbody2, false);
 
         let valCmb1 = document.getElementById('cmbHistorialVersiones').value;
         const cmbPadre = document.getElementById('cmbPadreActividad');
         if (valCmb1 === "ACTUAL" && cmbPadre) {
             cmbPadre.innerHTML = '<option value="">Seleccione un encabezado...</option>';
-            memoriaCache.filter(a => a.estado !== 'ELIMINADO' && (a.id.startsWith('ENC') || a.tipo === 'ENCABEZADO')).forEach(act => {
+            AppState.memoriaCache.filter(a => a.estado !== 'ELIMINADO' && (a.id.startsWith('ENC') || a.tipo === 'ENCABEZADO')).forEach(act => {
                 cmbPadre.innerHTML += `<option value="${act.id}">${act.indice} - ${act.descripcion}</option>`;
             });
-            if (puedeEditarEstructura) inicializarDragAndDrop();
+            if (AppState.puedeEditarEstructura) inicializarDragAndDrop();
             inicializarInteraccionCeldas();
         } else {
-            if (sortableInstancia) { try { sortableInstancia.destroy(); } catch (e) { } sortableInstancia = null; }
+            if (AppState.sortableInstancia) { try { AppState.sortableInstancia.destroy(); } catch (e) { } AppState.sortableInstancia = null; }
         }
     }
 
@@ -503,7 +485,7 @@
     // 3. MUTACIONES EN LA CACHÉ
     // ---------------------------------------------------------
     function mostrarBotonGuardar() {
-        if (!puedeEditarEstructura) return; // SC y RUBRO no ven el boton guardar
+        if (!AppState.puedeEditarEstructura) return; // SC y RUBRO no ven el boton guardar
         const btn = document.getElementById('btnGuardarOrden');
         if (btn) {
             btn.innerHTML = `💾 <span class="hidden sm:inline ml-1">Guardar Cambios</span>`;
@@ -515,7 +497,7 @@
         const desc = document.getElementById('txtDescEncabezado').value.trim();
         if (!desc) return alert("Por favor, ingresa la descripción.");
         guardarProgramacionTemporal();
-        memoriaCache.push({ id: "ENC_TEMP_" + Date.now(), indice: "999", descripcion: desc.toUpperCase(), unidad: "", scRubro: "", idPadre: "", estado: "ACTIVO" });
+        AppState.memoriaCache.push({ id: "ENC_TEMP_" + Date.now(), indice: "999", descripcion: desc.toUpperCase(), unidad: "", scRubro: "", idPadre: "", estado: "ACTIVO" });
         document.getElementById('modalEncabezado').classList.add('hidden');
         document.getElementById('txtDescEncabezado').value = "";
         mostrarBotonGuardar(); renderizarAmbasTablas();
@@ -527,9 +509,9 @@
         const und = document.getElementById('txtUndActividad').value.trim();
         const sc = document.getElementById('txtScActividad').value.trim();
         if (!idPadre || !desc) return alert("El encabezado y descripción son obligatorios.");
-        const padre = memoriaCache.find(a => a.id === idPadre);
+        const padre = AppState.memoriaCache.find(a => a.id === idPadre);
         guardarProgramacionTemporal();
-        memoriaCache.push({ id: "ACT_TEMP_" + Date.now(), indice: padre.indice + ".999", descripcion: desc.toUpperCase(), unidad: und.toUpperCase(), scRubro: sc.toUpperCase(), idPadre: idPadre, estado: "ACTIVO" });
+        AppState.memoriaCache.push({ id: "ACT_TEMP_" + Date.now(), indice: padre.indice + ".999", descripcion: desc.toUpperCase(), unidad: und.toUpperCase(), scRubro: sc.toUpperCase(), idPadre: idPadre, estado: "ACTIVO" });
         document.getElementById('modalActividad').classList.add('hidden');
         document.getElementById('txtDescActividad').value = ""; document.getElementById('txtUndActividad').value = ""; document.getElementById('txtScActividad').value = "";
         mostrarBotonGuardar(); renderizarAmbasTablas();
@@ -537,7 +519,7 @@
 
     function eliminarDeCache(id) {
         if (!confirm(`¿Estás seguro de eliminar este ítem?`)) return;
-        const item = memoriaCache.find(x => x.id === id);
+        const item = AppState.memoriaCache.find(x => x.id === id);
         if (item) {
             item.estado = 'ELIMINADO';
             guardarProgramacionTemporal();
@@ -546,7 +528,7 @@
     }
 
     function abrirModalEdicion(id) {
-        const item = memoriaCache.find(x => x.id === id);
+        const item = AppState.memoriaCache.find(x => x.id === id);
         if (!item) return;
         document.getElementById('txtEditIdActividad').value = id;
         document.getElementById('txtEditDesc').value = item.descripcion;
@@ -557,7 +539,7 @@
         const id = document.getElementById('txtEditIdActividad').value;
         const desc = document.getElementById('txtEditDesc').value.trim();
         if (!desc) return alert("La descripción no puede estar vacía.");
-        const item = memoriaCache.find(x => x.id === id);
+        const item = AppState.memoriaCache.find(x => x.id === id);
         if (item) item.descripcion = desc.toUpperCase();
 
         document.getElementById('modalEditar').classList.add('hidden');
@@ -573,16 +555,16 @@
         if (!window.eventosSelectorIniciados) {
             tbody.addEventListener('mousedown', (e) => {
                 if (e.target.classList.contains('row-chk')) {
-                    isDraggingSelect = true;
-                    dragSelectValue = !e.target.checked;
-                    seleccionarFila(e.target, dragSelectValue);
+                    AppState.isDraggingSelect = true;
+                    AppState.dragSelectValue = !e.target.checked;
+                    seleccionarFila(e.target, AppState.dragSelectValue);
                     e.preventDefault();
                 }
             });
             tbody.addEventListener('mouseover', (e) => {
-                if (isDraggingSelect && e.target.classList.contains('row-chk')) seleccionarFila(e.target, dragSelectValue);
+                if (AppState.isDraggingSelect && e.target.classList.contains('row-chk')) seleccionarFila(e.target, AppState.dragSelectValue);
             });
-            document.addEventListener('mouseup', () => isDraggingSelect = false);
+            document.addEventListener('mouseup', () => AppState.isDraggingSelect = false);
             window.eventosSelectorIniciados = true;
         }
         const chkAll = document.getElementById('chkSelectAll');
@@ -610,16 +592,16 @@
     function inicializarDragAndDrop() {
         const tbody = document.getElementById('tbodyLookAhead');
 
-        if (sortableInstancia) {
-            try { sortableInstancia.destroy(); } catch (e) { }
-            sortableInstancia = null;
+        if (AppState.sortableInstancia) {
+            try { AppState.sortableInstancia.destroy(); } catch (e) { }
+            AppState.sortableInstancia = null;
         }
 
         if (typeof Sortable.MultiDrag !== 'undefined' && !window.multiDragMounted) {
             try { Sortable.mount(new Sortable.MultiDrag()); window.multiDragMounted = true; } catch (e) { }
         }
 
-        sortableInstancia = new Sortable(tbody, {
+        AppState.sortableInstancia = new Sortable(tbody, {
             multiDrag: true,
             selectedClass: 'multi-selected',
             handle: '.drag-handle',
@@ -633,7 +615,7 @@
                 let nuevoOrdenCache = [];
                 filas.forEach(fila => {
                     const id = fila.getAttribute('data-id');
-                    const item = memoriaCache.find(x => x.id === id);
+                    const item = AppState.memoriaCache.find(x => x.id === id);
                     if (item) nuevoOrdenCache.push(item);
                 });
 
@@ -648,8 +630,8 @@
                     try { if (Sortable && Sortable.utils) Sortable.utils.deselect(tr); } catch (e) { }
                 });
 
-                memoriaCache.filter(x => x.estado === 'ELIMINADO').forEach(x => nuevoOrdenCache.push(x));
-                memoriaCache = nuevoOrdenCache;
+                AppState.memoriaCache.filter(x => x.estado === 'ELIMINADO').forEach(x => nuevoOrdenCache.push(x));
+                AppState.memoriaCache = nuevoOrdenCache;
 
                 guardarProgramacionTemporal();
                 mostrarBotonGuardar();
@@ -662,7 +644,7 @@
     // 5. SINCRONIZADOR MAESTRO Y VERSIONES 
     // ---------------------------------------------------------
     document.getElementById('btnGuardarOrden').addEventListener('click', async () => {
-        if (!puedeEditarEstructura) return; // Bloqueo de seguridad
+        if (!AppState.puedeEditarEstructura) return; // Bloqueo de seguridad
 
         const btn = document.getElementById('btnGuardarOrden');
         btn.innerHTML = `⏳ <span class="hidden sm:inline ml-1">Sincronizando...</span>`; btn.disabled = true;
@@ -670,20 +652,20 @@
         guardarProgramacionTemporal();
 
         let rolUsuario = "RESIDENTE";
-        if (rolGlobalReal === "ADMIN") {
+        if (AppState.rolGlobalReal === "ADMIN") {
             let cmb = document.getElementById('cmbRolSimulado');
             if (cmb) rolUsuario = cmb.value;
-        } else if (["STAFF", "SC", "RUBRO"].includes(rolGlobalReal)) {
+        } else if (["STAFF", "SC", "RUBRO"].includes(AppState.rolGlobalReal)) {
             rolUsuario = "RESIDENTE"; // STAFF guarda sus adiciones de estructura a la vista del RESIDENTE
         } else {
-            rolUsuario = rolGlobalReal;
+            rolUsuario = AppState.rolGlobalReal;
         }
 
-        let progParaGuardar = memoriaProgramacion.filter(p => fechasRangoActivo.includes(p.fecha));
+        let progParaGuardar = AppState.memoriaProgramacion.filter(p => AppState.fechasRangoActivo.includes(p.fecha));
 
         try {
-            const respuesta = await API.guardarCambiosCache(currentSheetsId, memoriaCache, progParaGuardar, fechasRangoActivo, rolUsuario);
-            if (respuesta.success) cargarLookAhead(currentSheetsId);
+            const respuesta = await API.guardarCambiosCache(AppState.currentSheetsId, AppState.memoriaCache, progParaGuardar, AppState.fechasRangoActivo, rolUsuario);
+            if (respuesta.success) cargarLookAhead(AppState.currentSheetsId);
             else alert("Error: " + respuesta.message);
         } catch (e) { alert("Error al sincronizar."); } finally { btn.disabled = false; }
     });
@@ -704,17 +686,17 @@
         const user = sessionData ? sessionData.idUsuario : "DESC";
 
         let rolUsuario = "RESIDENTE";
-        if (rolGlobalReal === "ADMIN") {
+        if (AppState.rolGlobalReal === "ADMIN") {
             let cmb = document.getElementById('cmbRolSimulado');
             if (cmb) rolUsuario = cmb.value;
         } else {
-            rolUsuario = rolGlobalReal;
+            rolUsuario = AppState.rolGlobalReal;
         }
 
-        let semInicio = parseInt(configProyecto.semanaInicio) || 1;
+        let semInicio = parseInt(AppState.configProyecto.semanaInicio) || 1;
         let rangoSemanas = `Sem ${semInicio}-${semInicio + 3}`;
 
-        let fechaBaseStr = configProyecto.fechaLunesBase;
+        let fechaBaseStr = AppState.configProyecto.fechaLunesBase;
         const sessionProy = JSON.parse(sessionStorage.getItem('proyectoActivo'));
         
         // 🟢 ¡AQUÍ ESTABA EL ERROR! 
@@ -722,10 +704,10 @@
         const jsonFolderId = sessionProy ? sessionProy.jsonFolderLook : "";
 
         try {
-            const res = await API.guardarVersion(currentSheetsId, comentario, user, rangoSemanas, rolUsuario, fechaBaseStr, jsonFolderId);
+            const res = await API.guardarVersion(AppState.currentSheetsId, comentario, user, rangoSemanas, rolUsuario, fechaBaseStr, jsonFolderId);
             if (res.success) {
                 document.getElementById('modalVersion').classList.add('hidden');
-                cargarLookAhead(currentSheetsId);
+                cargarLookAhead(AppState.currentSheetsId);
             } else {
                 alert("Error al guardar versión: " + res.message);
             }
@@ -794,19 +776,11 @@
         if (menuVisible) return;
 
         if (modoMoverActivo) {
-            let actIdOrigen = celdasOrigenMover[0].getAttribute('data-act');
-            let actIdDestino = celda.getAttribute('data-act');
-
-            if (actIdOrigen !== actIdDestino) {
-                alert("Debes mover el bloque dentro de la misma actividad (misma fila horizontal).");
-                return;
-            }
-
             let tr = celda.closest('tr');
             let todasLasCeldas = Array.from(tr.querySelectorAll('.celda-prog'));
             let indexDestino = todasLasCeldas.indexOf(celda);
 
-            let celdasOrigenOrdenadas = celdasOrigenMover.sort((a, b) => todasLasCeldas.indexOf(a) - todasLasCeldas.indexOf(b));
+            let celdasOrigenOrdenadas = celdasOrigenMover.sort((a, b) => a.cellIndex - b.cellIndex);
 
             if (indexDestino + celdasOrigenOrdenadas.length > todasLasCeldas.length) {
                 alert("No hay espacio suficiente en la semana para acomodar este bloque.");
@@ -958,8 +932,38 @@
 
     document.getElementById('btnMenuAsignar').addEventListener('click', () => {
         ocultarMenuContextual();
+        
+        // Populate recent sectors
+        const cmb = document.getElementById('cmbSectoresRecientes');
+        if (cmb) {
+            cmb.innerHTML = '<option value="">(Ninguno)</option>';
+            let sectoresUnicos = {};
+            AppState.memoriaProgramacion.forEach(p => {
+                if (p.sector && p.sector.trim() !== '' && p.color) {
+                    sectoresUnicos[p.sector.trim()] = p.color;
+                }
+            });
+            for (let sec in sectoresUnicos) {
+                cmb.innerHTML += `<option value="${sectoresUnicos[sec]}">${sec}</option>`;
+            }
+        }
+        
         document.getElementById('modalSector').classList.remove('hidden');
     });
+
+    // Auto-fill color when a recent sector is selected
+    const cmbSecRec = document.getElementById('cmbSectoresRecientes');
+    if (cmbSecRec) {
+        cmbSecRec.addEventListener('change', (e) => {
+            if (e.target.value) {
+                document.getElementById('txtColorSector').value = e.target.value;
+                const txtNombre = document.getElementById('txtNombreSector');
+                if (txtNombre.value.trim() === '') {
+                    txtNombre.value = e.target.options[e.target.selectedIndex].text;
+                }
+            }
+        });
+    }
 
     document.getElementById('btnMenuEliminar').addEventListener('click', () => {
         const seleccionadas = document.querySelectorAll('.celda-seleccionada');
@@ -1043,17 +1047,17 @@
     document.getElementById('btnConfirmarPegado').addEventListener('click', () => {
         guardarProgramacionTemporal();
 
-        let rolActivo = rolRenderizadoActual;
+        let rolActivo = AppState.rolRenderizadoActual;
 
         celdasDestinoCopiar.forEach(dest => {
-            let idx = memoriaProgramacion.findIndex(p => p.idActividad === dest.actId && p.fecha === dest.fecha && String(p.rol).toUpperCase() === String(rolActivo).toUpperCase());
+            let idx = AppState.memoriaProgramacion.findIndex(p => p.idActividad === dest.actId && p.fecha === dest.fecha && String(p.rol).toUpperCase() === String(rolActivo).toUpperCase());
 
             let nombreFinal = "";
             let colorFinal = portapapelesFormato.color;
 
             if (tipoPegadoSeleccionado === "FORMATO") {
                 if (idx >= 0) {
-                    nombreFinal = memoriaProgramacion[idx].sector;
+                    nombreFinal = AppState.memoriaProgramacion[idx].sector;
                 } else {
                     let celdaPantalla = document.querySelector(`.celda-prog[data-act="${dest.actId}"][data-fecha="${dest.fecha}"]`);
                     if (celdaPantalla) nombreFinal = celdaPantalla.innerText.trim();
@@ -1063,10 +1067,10 @@
             }
 
             if (idx >= 0) {
-                memoriaProgramacion[idx].sector = nombreFinal;
-                memoriaProgramacion[idx].color = colorFinal;
+                AppState.memoriaProgramacion[idx].sector = nombreFinal;
+                AppState.memoriaProgramacion[idx].color = colorFinal;
             } else {
-                memoriaProgramacion.push({
+                AppState.memoriaProgramacion.push({
                     idActividad: dest.actId,
                     fecha: dest.fecha,
                     sector: nombreFinal,
@@ -1103,9 +1107,9 @@
     // CONFIGURACIÓN DE LÍNEA DE TIEMPO
     // ==========================================
     function abrirModalConfigSemanas() {
-        if (configProyecto.fechaLunesBase) {
-            document.getElementById('txtFechaLunes').value = configProyecto.fechaLunesBase;
-            document.getElementById('txtSemanaInicio').value = configProyecto.semanaInicio;
+        if (AppState.configProyecto.fechaLunesBase) {
+            document.getElementById('txtFechaLunes').value = AppState.configProyecto.fechaLunesBase;
+            document.getElementById('txtSemanaInicio').value = AppState.configProyecto.semanaInicio;
         }
         document.getElementById('modalConfigSemanas').classList.remove('hidden');
     }
@@ -1123,10 +1127,10 @@
         btn.innerText = "Guardando..."; btn.disabled = true;
 
         try {
-            const res = await API.guardarConfiguracionProyecto(currentSheetsId, fecha, sem);
+            const res = await API.guardarConfiguracionProyecto(AppState.currentSheetsId, fecha, sem);
             if (res.success) {
                 document.getElementById('modalConfigSemanas').classList.add('hidden');
-                cargarLookAhead(currentSheetsId);
+                cargarLookAhead(AppState.currentSheetsId);
             } else { alert("Error: " + res.message); }
         } catch (e) { alert("Error de red."); } finally {
             btn.innerText = "Guardar y Recalcular"; btn.disabled = false;

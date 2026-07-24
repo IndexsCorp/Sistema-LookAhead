@@ -90,9 +90,9 @@
             <div class="flex space-x-1 sm:space-x-2 bg-slate-100 p-1 rounded-lg overflow-x-auto hide-scrollbar w-full sm:w-auto">
                 <button id="btnTabLA" class="px-3 py-2 bg-white shadow text-blue-700 font-semibold rounded-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 transition-colors">Look-Ahead</button>
                 <button id="btnTabPPC" class="px-3 py-2 text-gray-600 hover:text-blue-600 font-medium rounded-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 transition-colors">Plan Semanal (PPC)</button>
-                <button class="px-3 py-2 text-gray-600 font-medium rounded-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 opacity-50 cursor-not-allowed">Control Diario</button>
-                <button class="px-3 py-2 text-gray-600 font-medium rounded-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 opacity-50 cursor-not-allowed">Restricciones</button>
-                <button class="px-3 py-2 text-gray-600 font-medium rounded-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 opacity-50 cursor-not-allowed">Dashboard</button>
+                <button id="btnTabDiario" class="px-3 py-2 text-gray-600 hover:text-blue-600 font-medium rounded-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 transition-colors">Control Diario</button>
+                <button id="btnTabRestricciones" class="px-3 py-2 text-gray-600 hover:text-blue-600 font-medium rounded-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 transition-colors">Restricciones</button>
+                <button id="btnTabDashboard" class="px-3 py-2 text-gray-600 hover:text-blue-600 font-medium rounded-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 transition-colors">Dashboard</button>
             </div>
         </header>
 
@@ -119,45 +119,54 @@
                     </div>
                 </div>
                 
-                <div class="space-x-1 sm:space-x-2 flex items-center">
+                <div class="space-x-1 sm:space-x-2 flex items-center relative">
                     <!-- BADGE INFORMATIVO -->
                     <span id="badgeVentana" class="hidden sm:inline-flex bg-green-100 text-green-800 text-[10px] font-bold px-2 py-1 rounded-md border border-green-200 uppercase shadow-sm">
                         🟢 Rango Activo: Semanas -- al --
                     </span>
 
-                    <!-- NUEVO: SELECTOR DE ROL (Solo ADMIN) -->
-                    <select id="cmbRolSimulado" class="hidden ml-2 bg-purple-100 text-purple-800 border border-purple-300 px-2 py-1 rounded text-[10px] font-bold outline-none cursor-pointer shadow-sm uppercase mr-2">
-                        <option value="RESIDENTE">Vista: RESIDENTE</option>
-                        <option value="SUPERVISION">Vista: SUPERVISIÓN</option>
-                    </select>
-
-                    <!-- NUEVO BOTÓN COMPARAR (Para todos) -->
-                    <button id="btnToggleComparativo" class="bg-teal-600 text-white px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-teal-700 transition shadow-sm flex items-center mr-2">
-                        ⚖️ <span class="hidden sm:inline ml-1">Comparar Roles</span>
-                    </button>
-
-                    <!-- NUEVO BOTÓN CONFIGURACIÓN -->
-                    <button onclick="abrirModalConfigSemanas()" class="bg-indigo-100 text-indigo-700 border border-indigo-300 px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-indigo-200 transition shadow-sm flex items-center">
-                        🗓️ <span class="hidden sm:inline ml-1">Configurar Semanas</span>
-                    </button>
-
-                    <!-- LOS BOTONES QUE YA TENÍAS -->
-                    <button id="btnRegistrarVersion" class="bg-indigo-600 text-white px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-indigo-700 transition shadow-sm flex items-center">
-                        🔒 <span class="hidden sm:inline ml-1">Registrar Versión</span>
-                    </button>
-
                     <button id="btnGuardarOrden" class="hidden bg-green-600 text-white px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-green-700 transition shadow-sm items-center animate-pulse">
-                        💾 <span class="hidden sm:inline ml-1">Guardar Cambios</span>
+                        💾 <span class="hidden sm:inline ml-1">Guardar</span>
                     </button>
+
                     <button class="bg-white border border-gray-300 text-gray-700 px-2 sm:px-3 py-1.5 rounded text-xs font-semibold hover:bg-gray-100 transition shadow-sm flex items-center">
                         🔍 <span class="hidden sm:inline ml-1">Filtros</span>
                     </button>
-                    <button onclick="document.getElementById('modalEncabezado').classList.remove('hidden')" class="bg-slate-700 text-white px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-slate-800 transition shadow-sm flex items-center">
-                        + <span class="hidden sm:inline ml-1">Encabezado</span>
-                    </button>
-                    <button onclick="document.getElementById('modalActividad').classList.remove('hidden')" class="bg-blue-600 text-white px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-blue-700 transition shadow-sm flex items-center">
-                        + <span class="hidden sm:inline ml-1">Actividad</span>
-                    </button>
+                    
+                    <!-- DROPDOWN OPCIONES -->
+                    <div class="relative group z-50">
+                        <button class="bg-slate-700 text-white px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-slate-800 transition shadow-sm flex items-center">
+                            ⚙️ <span class="hidden sm:inline ml-1">Opciones ▾</span>
+                        </button>
+                        <div class="absolute right-0 mt-1 w-56 bg-white border border-gray-200 rounded-md shadow-lg hidden group-hover:block group-focus-within:block flex flex-col py-1">
+                            
+                            <!-- SELECTOR DE ROL (Solo ADMIN) -->
+                            <div class="px-4 py-2 border-b border-gray-100">
+                                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Vista Simbólica</label>
+                                <select id="cmbRolSimulado" class="w-full bg-purple-100 text-purple-800 border border-purple-300 px-2 py-1 rounded text-[10px] font-bold outline-none cursor-pointer shadow-sm uppercase">
+                                    <option value="RESIDENTE">Vista: RESIDENTE</option>
+                                    <option value="SUPERVISION">Vista: SUPERVISIÓN</option>
+                                </select>
+                            </div>
+                            
+                            <button id="btnToggleComparativo" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                                ⚖️ <span class="ml-2">Comparar Roles</span>
+                            </button>
+                            <button onclick="abrirModalConfigSemanas()" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                                🗓️ <span class="ml-2">Configurar Semanas</span>
+                            </button>
+                            <button id="btnRegistrarVersion" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                                🔒 <span class="ml-2">Registrar Versión</span>
+                            </button>
+                            <div class="border-t border-gray-100 my-1"></div>
+                            <button onclick="document.getElementById('modalEncabezado').classList.remove('hidden')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                                📁 <span class="ml-2">Agregar Encabezado</span>
+                            </button>
+                            <button onclick="document.getElementById('modalActividad').classList.remove('hidden')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                                📝 <span class="ml-2">Agregar Actividad</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -433,6 +442,13 @@
                 <input type="text" id="txtNombreSector" placeholder="Ej: SECTOR 1" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm uppercase">
             </div>
             
+            <div class="mb-4">
+                <label class="block text-xs font-bold text-gray-700 mb-1">O copiar de un Sector Existente</label>
+                <select id="cmbSectoresRecientes" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50">
+                    <option value="">(Ninguno)</option>
+                </select>
+            </div>
+
             <!-- Selector de Color Infinito -->
             <div class="mb-6 flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200">
                 <div>
@@ -544,6 +560,7 @@
 
     <!-- Conexion a la Base de Datos y API -->
     <script src="assets/js/database/config.js"></script>
+    <script src="assets/js/database/state.js"></script>
     <script src="assets/js/services/api.js"></script>
     
     <!-- Logica de la Interfaz -->

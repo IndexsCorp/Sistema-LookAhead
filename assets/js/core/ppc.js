@@ -17,7 +17,7 @@
         // Llenar combo de Base Look-Ahead
         const cmbBase = document.getElementById('cmbVersionPPC');
         cmbBase.innerHTML = '<option value="">Seleccione Versión Base...</option>';
-        listaVersionesGlobal.forEach(v => {
+        AppState.listaVersionesGlobal.forEach(v => {
             let fechaLimpia = v.fecha;
             if (fechaLimpia.includes("GMT")) {
                 let d = new Date(fechaLimpia);
@@ -27,7 +27,7 @@
         });
 
         const cmbSem = document.getElementById('cmbSemanaPPC');
-        let semInicio = parseInt(configProyecto.semanaInicio) || 1;
+        let semInicio = parseInt(AppState.configProyecto.semanaInicio) || 1;
         cmbSem.innerHTML = `
             <option value="1">Semana ${semInicio}</option>
             <option value="2">Semana ${semInicio + 1}</option>
@@ -36,7 +36,7 @@
         `;
 
         // Configuración de botones de guardado según rol
-        if (["SC", "RUBRO", "STAFF"].includes(rolGlobalReal)) {
+        if (["SC", "RUBRO", "STAFF"].includes(AppState.rolGlobalReal)) {
             document.getElementById('btnGuardarBorradorPPC').classList.add('hidden');
             document.getElementById('btnRegistrarVersionPPC').classList.add('hidden');
         } else {
@@ -46,7 +46,7 @@
             document.getElementById('btnRegistrarVersionPPC').classList.add('flex');
         }
 
-        if (rolGlobalReal === "ADMIN") {
+        if (AppState.rolGlobalReal === "ADMIN") {
             const cmbRolPPC = document.getElementById('cmbRolSimuladoPPC');
             if (cmbRolPPC) {
                 cmbRolPPC.classList.remove('hidden');
@@ -58,7 +58,7 @@
 
         // 🟢 NUEVO: Llenar el Historial de PPC desde la base de datos
         try {
-            const res = await API.obtenerListaVersionesPPC(currentSheetsId);
+            const res = await API.obtenerListaVersionesPPC(AppState.currentSheetsId);
             if (res.success) {
                 const cmbHistorial = document.getElementById('cmbHistorialPPC');
                 cmbHistorial.innerHTML = '<option value="EDICION" data-file="">Modo Edición</option>';
@@ -95,7 +95,7 @@
             btnCargar.classList.remove('hidden'); btnCargar.classList.add('flex');
             selectoresEdicion.forEach(s => { s.disabled = false; s.classList.remove('opacity-50'); });
             
-            if (!["SC", "RUBRO", "STAFF"].includes(rolGlobalReal)) {
+            if (!["SC", "RUBRO", "STAFF"].includes(AppState.rolGlobalReal)) {
                 btnGuardar.classList.remove('hidden'); btnGuardar.classList.add('flex');
                 btnRegistrar.classList.remove('hidden'); btnRegistrar.classList.add('flex');
             }
@@ -125,10 +125,10 @@
                     let numSemana = data.semanaEvaluada.match(/\d+/);
                     let idxSemana = numSemana ? parseInt(numSemana[0]) : 1;
                     
-                    let semInicioObra = parseInt(configProyecto.semanaInicio) || 1;
+                    let semInicioObra = parseInt(AppState.configProyecto.semanaInicio) || 1;
                     let difSemana = idxSemana - semInicioObra; // Diferencia respecto a la semana 1
                     
-                    let dLunes = new Date(configProyecto.fechaLunesBase + "T00:00:00");
+                    let dLunes = new Date(AppState.configProyecto.fechaLunesBase + "T00:00:00");
                     dLunes.setDate(dLunes.getDate() + (difSemana * 7));
                     
                     ppc_fechasSemana = [];
@@ -140,7 +140,7 @@
 
                     // Determinar de quién era el plan base
                     let rolPlanBase = "RESIDENTE";
-                    const vInfo = listaVersionesGlobal.find(v => v.numero === data.baseEvaluada);
+                    const vInfo = AppState.listaVersionesGlobal.find(v => v.numero === data.baseEvaluada);
                     if (vInfo && vInfo.rol) rolPlanBase = String(vInfo.rol).trim().toUpperCase();
 
                     renderizarTablaPPC("LECTURA_JSON", rolPlanBase);
@@ -166,7 +166,7 @@
         btnCargar.innerHTML = `⏳ <span class="hidden sm:inline ml-1">Cargando...</span>`;
         btnCargar.disabled = true;
 
-        let dLunes = new Date(configProyecto.fechaLunesBase + "T00:00:00");
+        let dLunes = new Date(AppState.configProyecto.fechaLunesBase + "T00:00:00");
         dLunes.setDate(dLunes.getDate() + ((semanaRelativa - 1) * 7));
         
         ppc_fechasSemana = [];
@@ -177,20 +177,20 @@
         }
 
         let rolEvaluar = "RESIDENTE";
-        if (rolGlobalReal === "ADMIN") {
+        if (AppState.rolGlobalReal === "ADMIN") {
             let cmbRol = document.getElementById('cmbRolSimuladoPPC');
             if (cmbRol) rolEvaluar = cmbRol.value;
-        } else if (["STAFF", "SC", "RUBRO"].includes(rolGlobalReal)) {
+        } else if (["STAFF", "SC", "RUBRO"].includes(AppState.rolGlobalReal)) {
             rolEvaluar = "RESIDENTE"; 
         } else {
-            rolEvaluar = rolGlobalReal;
+            rolEvaluar = AppState.rolGlobalReal;
         }
 
-        const versionInfo = listaVersionesGlobal.find(v => v.numero === versionBase);
+        const versionInfo = AppState.listaVersionesGlobal.find(v => v.numero === versionBase);
         const rolVersionBase = versionInfo && versionInfo.rol ? String(versionInfo.rol).trim().toUpperCase() : "RESIDENTE";
 
         try {
-            const resLA = await API.obtenerVersionAntigua(currentSheetsId, versionBase);
+            const resLA = await API.obtenerVersionAntigua(AppState.currentSheetsId, versionBase);
             if (!resLA.success) throw new Error(resLA.message);
             
             ppc_actividades = resLA.actividades.actividades || [];
@@ -198,7 +198,7 @@
 
             let nomSemanaReal = document.getElementById('cmbSemanaPPC').options[document.getElementById('cmbSemanaPPC').selectedIndex].text;
             
-            const resPPC = await API.obtenerDatosPPC(currentSheetsId, versionBase, nomSemanaReal, rolEvaluar);
+            const resPPC = await API.obtenerDatosPPC(AppState.currentSheetsId, versionBase, nomSemanaReal, rolEvaluar);
             
             if (resPPC.success) {
                 ppc_catalogoCNC = resPPC.catalogoCNC || [];
@@ -335,7 +335,7 @@
         const celdas = document.querySelectorAll('.celda-ppc');
         celdas.forEach(c => {
             c.addEventListener('click', function() {
-                if (!puedeEditarEstructura) return; 
+                if (!AppState.puedeEditarEstructura) return; 
 
                 if (this.classList.contains('hatch-no-cumplido')) {
                     this.classList.remove('hatch-no-cumplido');
@@ -406,11 +406,11 @@
         if (!versionBase) return alert("Carga una versión primero.");
 
         let rolGuardar = "RESIDENTE";
-        if (rolGlobalReal === "ADMIN") {
+        if (AppState.rolGlobalReal === "ADMIN") {
             let cmbRol = document.getElementById('cmbRolSimuladoPPC');
             if (cmbRol) rolGuardar = cmbRol.value;
         } else {
-            rolGuardar = rolGlobalReal;
+            rolGuardar = AppState.rolGlobalReal;
         }
 
         let datosGuardar = [];
@@ -427,7 +427,7 @@
         btn.disabled = true;
 
         try {
-            const res = await API.guardarBorradorPPC(currentSheetsId, versionBase, nomSemanaReal, rolGuardar, datosGuardar);
+            const res = await API.guardarBorradorPPC(AppState.currentSheetsId, versionBase, nomSemanaReal, rolGuardar, datosGuardar);
             if (res.success) {
                 btn.innerHTML = `✅ <span class="hidden sm:inline ml-1">¡Guardado!</span>`;
                 setTimeout(() => {
@@ -469,11 +469,11 @@
         const nomSemanaReal = document.getElementById('cmbSemanaPPC').options[document.getElementById('cmbSemanaPPC').selectedIndex].text;
 
         let rolUsuario = "RESIDENTE";
-        if (rolGlobalReal === "ADMIN") {
+        if (AppState.rolGlobalReal === "ADMIN") {
             let cmb = document.getElementById('cmbRolSimuladoPPC');
             if (cmb) rolUsuario = cmb.value;
         } else {
-            rolUsuario = rolGlobalReal;
+            rolUsuario = AppState.rolGlobalReal;
         }
 
         const sessionProy = JSON.parse(sessionStorage.getItem('proyectoActivo'));
@@ -483,7 +483,7 @@
             document.getElementById('btnGuardarBorradorPPC').click();
             
             setTimeout(async () => {
-                const res = await API.guardarVersionPPC(currentSheetsId, comentario, idUsuario, nomSemanaReal, rolUsuario, versionBase, jsonFolderIdPPC);
+                const res = await API.guardarVersionPPC(AppState.currentSheetsId, comentario, idUsuario, nomSemanaReal, rolUsuario, versionBase, jsonFolderIdPPC);
                 if (res.success) {
                     document.getElementById('modalVersionPPC').classList.add('hidden');
                     alert(`¡Versión ${res.nuevaVersion} del PPC registrada con éxito!`);
