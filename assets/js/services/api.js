@@ -70,5 +70,21 @@ const API = {
     },
     generarPDFDesdeTabla(pdfFolderId, nombreArchivo, valores, fondos, textos) {
         return this.ejecutar("generarPDFDesdeTabla", { pdfFolderId, nombreArchivo, tablaValores: valores, tablaFondos: fondos, tablaTextos: textos });
+    },
+
+    // --- CONTROL DIARIO ---
+    obtenerDatosDiario(sheetsId) {
+        return this.ejecutar("obtenerDatosDiario", { sheetsId });
+    },
+    guardarRegistroDiario(sheetsId, registro) {
+        return this.ejecutar("guardarDiario", { sheetsId, registro });
+    },
+
+    // --- RESTRICCIONES ---
+    obtenerRestricciones(sheetsId) {
+        return this.ejecutar("obtenerRestricciones", { sheetsId });
+    },
+    guardarRestriccion(sheetsId, restriccion) {
+        return this.ejecutar("guardarRestriccion", { sheetsId, restriccion });
     }
 };

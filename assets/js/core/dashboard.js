@@ -89,40 +89,56 @@ document.getElementById('btnVolverDashboard').addEventListener('click', function
 });
 
 // ==========================================
-// LÓGICA DE NAVEGACIÓN DE PESTAÑAS (LA vs PPC)
+// LÓGICA DE NAVEGACIÓN DE PESTAÑAS
 // ==========================================
-// Usamos un intervalo rápido para asegurar que el HTML ya exista antes de inyectar el clic
 let tabsInterval = setInterval(() => {
     const btnLA = document.getElementById('btnTabLA');
     const btnPPC = document.getElementById('btnTabPPC');
+    const btnDiario = document.getElementById('btnTabDiario');
+    const btnRestricciones = document.getElementById('btnTabRestricciones');
+    const btnDashboard = document.getElementById('btnTabDashboard');
+
     const mainLA = document.getElementById('mainLookAhead'); 
-    const mainPPC = document.getElementById('mainPPC'); 
+    const mainPPC = document.getElementById('mainPPC');
+    const mainDiario = document.getElementById('mainDiario');
+    const mainRestricciones = document.getElementById('mainRestricciones');
+    const mainDashboard = document.getElementById('mainDashboard');
 
-    if(btnLA && btnPPC && mainLA && mainPPC) {
-        clearInterval(tabsInterval); // Ya encontró los botones, detenemos el buscador
+    if(btnLA && btnPPC && btnDiario && btnRestricciones && btnDashboard && mainLA && mainPPC) {
+        clearInterval(tabsInterval);
 
-        btnLA.addEventListener('click', () => {
-            btnLA.className = "px-3 py-2 bg-white shadow text-blue-700 font-semibold rounded-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 transition-colors";
-            btnPPC.className = "px-3 py-2 text-gray-600 hover:text-blue-600 font-medium rounded-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 transition-colors";
-            
-            mainLA.classList.remove('hidden');
-            mainLA.classList.add('flex'); // Mantiene el flexbox del lookahead
-            mainPPC.classList.add('hidden');
-            mainPPC.classList.remove('flex');
-        });
+        const tabs = [
+            { btn: btnLA, main: mainLA, isFlex: true },
+            { btn: btnPPC, main: mainPPC, isFlex: true, onOpen: () => { if(typeof cargarVistaPPC === 'function') cargarVistaPPC(); } },
+            { btn: btnDiario, main: mainDiario, isFlex: true, onOpen: () => { if(typeof cargarVistaDiario === 'function') cargarVistaDiario(); } },
+            { btn: btnRestricciones, main: mainRestricciones, isFlex: true, onOpen: () => { if(typeof cargarVistaRestricciones === 'function') cargarVistaRestricciones(); } },
+            { btn: btnDashboard, main: mainDashboard, isFlex: true }
+        ];
 
-        btnPPC.addEventListener('click', () => {
-            btnPPC.className = "px-3 py-2 bg-white shadow text-blue-700 font-semibold rounded-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 transition-colors";
-            btnLA.className = "px-3 py-2 text-gray-600 hover:text-blue-600 font-medium rounded-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 transition-colors";
-            
-            mainLA.classList.add('hidden');
-            mainLA.classList.remove('flex');
-            mainPPC.classList.remove('hidden');
-            mainPPC.classList.add('flex'); // Mantiene el flexbox del PPC
-            
-            // Disparador de la carga de la vista PPC
-            if(typeof cargarVistaPPC === 'function') cargarVistaPPC();
-        });
+        function setActiveTab(activeIdx) {
+            tabs.forEach((t, i) => {
+                if (i === activeIdx) {
+                    t.btn.className = "px-3 py-2 bg-white shadow text-blue-700 font-semibold rounded-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 transition-colors";
+                    if (t.main) {
+                        t.main.classList.remove('hidden');
+                        t.main.classList.add(t.isFlex ? 'flex' : 'block');
+                    }
+                    if (t.onOpen) t.onOpen();
+                } else {
+                    t.btn.className = "px-3 py-2 text-gray-600 hover:text-blue-600 font-medium rounded-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 transition-colors";
+                    if (t.main) {
+                        t.main.classList.add('hidden');
+                        t.main.classList.remove(t.isFlex ? 'flex' : 'block');
+                    }
+                }
+            });
+        }
+
+        btnLA.addEventListener('click', () => setActiveTab(0));
+        btnPPC.addEventListener('click', () => setActiveTab(1));
+        btnDiario.addEventListener('click', () => setActiveTab(2));
+        btnRestricciones.addEventListener('click', () => setActiveTab(3));
+        btnDashboard.addEventListener('click', () => setActiveTab(4));
     }
 }, 500); // Busca los botones cada medio segundo al arrancar
 
