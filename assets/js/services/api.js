@@ -1,5 +1,5 @@
 // 🟢 Pega aquí la URL que termine en /exec que te dio Google Apps Script
-const API_URL = "https://script.google.com/macros/s/AKfycbzIF1ZBnH3OwZAOtyimrNwhVcLBKROzm8IhWvbkE0UhEA4Wt876Swh7Fkh--aRBev85/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwe8Jj4R0BLMdor0eTsMi7NpyRKEw4DXDvZdSlwLUhmi2V9EzukiZB2QGw-B3A16jLo/exec";
 
 const API = {
     async ejecutar(action, payload = {}) {
