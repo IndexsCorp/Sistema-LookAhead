@@ -687,11 +687,17 @@ document.getElementById('btnGuardarVersionPPC').addEventListener('click', async 
 // 7. EXPORTAR REPORTE A PDF (DESCARGA DIRECTA A4 HORIZONTAL)
 // =========================================================
 document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
+    // Validación: Comprobar que la memoria JSON no esté vacía
+    if (ppc_actividades.length === 0) {
+        alert("⚠️ Por favor, haz clic en 'Cargar Look' o selecciona una versión del historial antes de exportar.");
+        return;
+    }
+
     const btn = document.getElementById('btnExportarPDFPPC');
     const originalText = btn.innerHTML;
     btn.disabled = true;
 
-    // 1. RECOLECTAR DATOS
+    // 1. RECOLECTAR DATOS DE LA MEMORIA (JSON)
     const nombreProyecto = document.getElementById('lblNombreProyecto').innerText;
     const semanaSel = document.getElementById('cmbSemanaPPC');
     const semanaNombre = semanaSel.options[semanaSel.selectedIndex].text;
@@ -709,7 +715,7 @@ document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
     const diasNombres = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
     let htmlCabeceraDias = '';
     ppc_fechasSemana.forEach((f, i) => {
-        htmlCabeceraDias += `<th style="width: 7%;">${f.substring(0, 5)}<br><span style="font-weight: normal; font-size: 9px;">${diasNombres[i]}</span></th>`;
+        htmlCabeceraDias += `<th style="width: 7%; border: 1px solid #cbd5e1; background-color: #f1f5f9; color: #334155; padding: 8px 4px; font-size: 10px;">${f.substring(0, 5)}<br><span style="font-weight: normal; font-size: 9px;">${diasNombres[i]}</span></th>`;
     });
 
     // 3. CONSTRUIR FILAS (TABLA)
@@ -735,13 +741,13 @@ document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
                 if (p && (p.sector || p.color)) {
                     progFila++;
                     let borrador = ppc_borradores.find(b => b.idActividad === act.id && b.fecha === fStr);
-                    if (borrador) { // Achurado
+                    if (borrador) { // Achurado (No Cumplido)
                         celdasHTML += `<td style="border: 1px solid #cbd5e1; padding: 6px 4px; text-align: center; color: #000; font-weight: bold; border: 2px solid #ef4444 !important; background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.6), rgba(255,255,255,0.6) 4px, transparent 4px, transparent 8px); background-color: ${p.color};">${p.sector || ''}</td>`;
                     } else { // Cumplido
                         celdasHTML += `<td style="border: 1px solid #cbd5e1; padding: 6px 4px; text-align: center; color: white; font-weight: bold; background-color: ${p.color};">${p.sector || ''}</td>`;
                     }
                 } else {
-                    celdasHTML += `<td style="border: 1px solid #cbd5e1;"></td>`;
+                    celdasHTML += `<td style="border: 1px solid #cbd5e1; background-color: #f8fafc;"></td>`;
                 }
             });
 
@@ -814,17 +820,13 @@ document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
     let pctNum = sumProg > 0 ? ((sumCump / sumProg) * 100).toFixed(2) : "0.00";
     let mostrarCNC = sumProg === sumCump ? 'display: none;' : 'display: block;';
 
-    // 5. PANTALLA DE CARGA (EL TELÓN)
+    // 5. PANTALLA DE CARGA (EL TELÓN BLANCO)
     const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95); z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center;';
-    overlay.innerHTML = `
-        <div style="font-size: 4rem; animation: spin 2s linear infinite;">⏳</div>
-        <h2 style="font-size: 1.5rem; font-weight: bold; color: #1e293b; margin-top: 1rem;">Generando PDF de Alta Calidad...</h2>
-        <p style="color: #64748b;">Descargando documento automáticamente.</p>
-    `;
+    overlay.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:#ffffff; z-index:99999; display:flex; align-items:center; justify-content:center; flex-direction:column;';
+    overlay.innerHTML = `<div style="font-size: 40px; margin-bottom: 20px;">⏳</div><h2 style="font-size:20px; font-family:sans-serif; color:#333;">Generando Documento PDF...</h2>`;
     document.body.appendChild(overlay);
 
-    // 6. CREAR CONTENEDOR DE IMPRESIÓN (REALMENTE VISIBLE PERO DEBAJO DEL TELÓN)
+    // 6. CREAR CONTENEDOR EN EL DOM TOTALMENTE VISIBLE PERO DEBAJO DEL TELÓN
     const printContainer = document.createElement('div');
     printContainer.style.cssText = 'position:absolute; top:0; left:0; width:1122px; background:#ffffff; padding:20px; font-family:Arial, sans-serif; color:#333; z-index:99998;';
     
@@ -844,15 +846,15 @@ document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px; text-align: center;">
             <thead style="display: table-header-group;">
                 <tr>
-                    <th style="background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 8px 4px; font-size: 10px; font-weight: bold;">ÍNDICE</th>
-                    <th style="background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 8px 4px; font-size: 10px; font-weight: bold;">DESCRIPCIÓN DE LA ACTIVIDAD</th>
+                    <th style="width: 5%; background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 8px 4px; font-size: 10px; font-weight: bold;">ÍNDICE</th>
+                    <th style="width: 35%; background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 8px 4px; font-size: 10px; font-weight: bold; text-align:left; padding-left:8px;">DESCRIPCIÓN DE LA ACTIVIDAD</th>
                     ${htmlCabeceraDias}
-                    <th style="background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 8px 4px; font-size: 10px; font-weight: bold;">PROG.</th>
-                    <th style="background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 8px 4px; font-size: 10px; font-weight: bold;">CUMP.</th>
+                    <th style="width: 5.5%; background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 8px 4px; font-size: 10px; font-weight: bold;">PROG.</th>
+                    <th style="width: 5.5%; background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 8px 4px; font-size: 10px; font-weight: bold;">CUMP.</th>
                 </tr>
             </thead>
             <tbody>
-                ${htmlFilasActividades || '<tr><td colspan="11" style="border: 1px solid #cbd5e1; padding: 20px;">No hay datos en esta evaluación</td></tr>'}
+                ${htmlFilasActividades}
             </tbody>
         </table>
 
@@ -893,7 +895,11 @@ document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
 
     document.body.appendChild(printContainer);
 
-    // 7. RENDERIZAR GRÁFICO INVISIBLE
+    // Obligamos al navegador a ver la parte superior para que la cámara no falle
+    const oldScroll = window.scrollY;
+    window.scrollTo(0, 0);
+
+    // 7. RENDERIZAR GRÁFICO
     if (datosGrafico.length > 0) {
         const ctx = document.getElementById('pdfChartDirecto').getContext('2d');
         Chart.register(ChartDataLabels);
@@ -919,25 +925,22 @@ document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
 
     // 8. CONVERTIR A PDF Y DESCARGAR
     setTimeout(() => {
-        // Movemos el scroll arriba temporalmente por si acaso
-        const oldScroll = window.scrollY;
-        window.scrollTo(0, 0);
-
         const opt = {
-            margin:       [10, 10, 15, 10],
+            margin:       [10, 10, 15, 10], // Margen en mm [arriba, izquierda, abajo, derecha]
             filename:     `Reporte_PPC_${semanaNombre.replace(/ /g, "_")}.pdf`,
-            image:        { type: 'jpeg', quality: 1 },
-            html2canvas:  { scale: 2, useCORS: true, letterRendering: true, scrollY: 0 },
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true, scrollY: 0 }, // scrollY en 0 obliga a tomar foto desde arriba
             jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' },
             pagebreak:    { mode: 'css', avoid: 'tr, .evitar-quiebre' }
         };
 
         html2pdf().set(opt).from(printContainer).save().then(() => {
-            // Limpieza: quitamos el contenedor y el telón
+            // Limpieza y restauración
             document.body.removeChild(printContainer);
             document.body.removeChild(overlay);
-            window.scrollTo(0, oldScroll); // Regresamos al usuario a donde estaba
+            window.scrollTo(0, oldScroll); // Te devuelve a donde estabas
+            btn.innerHTML = originalText;
             btn.disabled = false;
         });
-    }, 500); 
+    }, 800); // Le damos un poquito más de tiempo para que se dibuje todo al 100%
 });
