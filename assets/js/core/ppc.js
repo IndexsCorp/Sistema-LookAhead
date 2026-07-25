@@ -689,7 +689,6 @@ document.getElementById('btnGuardarVersionPPC').addEventListener('click', async 
 document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
     const btn = document.getElementById('btnExportarPDFPPC');
     const originalText = btn.innerHTML;
-    btn.innerHTML = `⏳ <span class="hidden sm:inline ml-1">Creando PDF...</span>`;
     btn.disabled = true;
 
     // 1. RECOLECTAR DATOS
@@ -815,18 +814,19 @@ document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
     let pctNum = sumProg > 0 ? ((sumCump / sumProg) * 100).toFixed(2) : "0.00";
     let mostrarCNC = sumProg === sumCump ? 'display: none;' : 'display: block;';
 
-    // 5. CREAR CONTENEDOR INVISIBLE PARA LA PLANTILLA (Ancho A4 a 96dpi)
+    // 5. PANTALLA DE CARGA (EL TELÓN)
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95); z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center;';
+    overlay.innerHTML = `
+        <div style="font-size: 4rem; animation: spin 2s linear infinite;">⏳</div>
+        <h2 style="font-size: 1.5rem; font-weight: bold; color: #1e293b; margin-top: 1rem;">Generando PDF de Alta Calidad...</h2>
+        <p style="color: #64748b;">Descargando documento automáticamente.</p>
+    `;
+    document.body.appendChild(overlay);
+
+    // 6. CREAR CONTENEDOR DE IMPRESIÓN (REALMENTE VISIBLE PERO DEBAJO DEL TELÓN)
     const printContainer = document.createElement('div');
-    // 🟢 EL TRUCO: Posición 0,0 pero oculto detrás de la app
-    printContainer.style.position = 'absolute';
-    printContainer.style.top = '0';
-    printContainer.style.left = '0';
-    printContainer.style.width = '1122px'; // Equivalente al ancho A4 Horizontal
-    printContainer.style.zIndex = '-9999'; // Oculto detrás del fondo
-    printContainer.style.backgroundColor = '#ffffff';
-    printContainer.style.padding = '20px';
-    printContainer.style.fontFamily = 'Arial, sans-serif';
-    printContainer.style.color = '#333';
+    printContainer.style.cssText = 'position:absolute; top:0; left:0; width:1122px; background:#ffffff; padding:20px; font-family:Arial, sans-serif; color:#333; z-index:99998;';
     
     printContainer.innerHTML = `
         <div style="display: flex; border-bottom: 3px solid #0f172a; padding-bottom: 12px; margin-bottom: 20px; align-items: flex-end;">
@@ -893,7 +893,7 @@ document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
 
     document.body.appendChild(printContainer);
 
-    // 6. RENDERIZAR GRÁFICO INVISIBLE
+    // 7. RENDERIZAR GRÁFICO INVISIBLE
     if (datosGrafico.length > 0) {
         const ctx = document.getElementById('pdfChartDirecto').getContext('2d');
         Chart.register(ChartDataLabels);
@@ -917,9 +917,9 @@ document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
         });
     }
 
-    // 7. CONVERTIR A PDF Y DESCARGAR
+    // 8. CONVERTIR A PDF Y DESCARGAR
     setTimeout(() => {
-        // 🟢 EL TRUCO 2: Mover la vista arriba temporalmente para que no salga blanco
+        // Movemos el scroll arriba temporalmente por si acaso
         const oldScroll = window.scrollY;
         window.scrollTo(0, 0);
 
@@ -933,10 +933,10 @@ document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
         };
 
         html2pdf().set(opt).from(printContainer).save().then(() => {
-            // Limpieza
+            // Limpieza: quitamos el contenedor y el telón
             document.body.removeChild(printContainer);
+            document.body.removeChild(overlay);
             window.scrollTo(0, oldScroll); // Regresamos al usuario a donde estaba
-            btn.innerHTML = originalText;
             btn.disabled = false;
         });
     }, 500); 
