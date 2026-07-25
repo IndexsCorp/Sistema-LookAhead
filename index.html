@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Look-Ahead & Control Diario</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- NUEVO: Librería para crear el PDF e insertar la imagen -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+        /* Patrón de achurado para sectores no cumplidos (PPC) */
+        .hatch-no-cumplido {
+            background-image: repeating-linear-gradient(45deg,
+                    rgba(255, 255, 255, 0.4),
+                    rgba(255, 255, 255, 0.4) 5px,
+                    transparent 5px,
+                    transparent 10px) !important;
+            border: 2px solid #ef4444 !important;
+            /* Borde rojo para resaltar el fallo */
+            color: #fff !important;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+        }
+    </style>
+    <!-- Chart.js para el gráfico de CNC -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <style>
+        /* Estilo para que la barra de scroll de la tabla CNC se vea limpia */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+
+<body
+    class="bg-slate-200 text-slate-800 font-sans min-h-screen flex items-center justify-center p-4 transition-all duration-500">
+
+    <!-- LOGIN -->
+    <div id="v0-login" class="bg-white p-8 rounded-xl shadow-lg w-full max-w-sm transition-all duration-300">
+        <div class="text-center mb-8">
+            <div
+                class="bg-blue-600 text-white w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold shadow-md">
+                LA
+            </div>
+            <h2 class="text-2xl font-extrabold text-gray-800">Iniciar Sesión</h2>
+            <p class="text-sm text-gray-500 mt-1">Sistema de Control y Look-Ahead</p>
+        </div>
+
+        <form id="loginForm" class="space-y-5">
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Usuario o Correo Electrónico</label>
+                <input type="text" id="txtEmail"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                    placeholder="USR001 o usuario@empresa.com" required>
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Contraseña</label>
+                <input type="password" id="txtPassword"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                    placeholder="••••••••" required>
+            </div>
+
+            <p id="msgError" class="text-red-500 text-sm hidden text-center font-medium bg-red-50 p-2 rounded">
+                Credenciales incorrectas.</p>
+
+            <button type="submit" id="btnLogin"
+                class="w-full bg-blue-600 text-white font-bold py-2.5 px-4 rounded-lg hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 transition-all duration-200 flex justify-center items-center">
+                Ingresar
+            </button>
+        </form>
+
+        <div class="mt-6 text-center">
+            <p class="text-xs text-gray-400">&copy; 2026 Index Corp</p>
+        </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="v1-dashboard" class="hidden w-full max-w-6xl mx-auto flex-col h-screen py-8">
+        <header class="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800">Mis Proyectos</h1>
+                <p id="lblUsuarioActivo" class="text-sm text-gray-500">Bienvenido, Cargando...</p>
+            </div>
+            <button id="btnLogout" class="text-red-500 hover:text-red-700 font-semibold text-sm transition-colors">
+                Cerrar Sesión
+            </button>
+        </header>
+        <main id="gridProyectos" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></main>
+    </div>
+
+    <!-- PROYECTO: LOOK-AHEAD -->
+    <div id="v2-proyecto" class="hidden w-full max-w-7xl mx-auto flex-col min-h-screen py-4">
+        <header
+            class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-xl shadow-sm mb-6 border-l-4 border-blue-600 gap-4">
+            <div>
+                <button id="btnVolverDashboard"
+                    class="text-blue-600 hover:text-blue-800 text-sm font-semibold mb-1 flex items-center transition-colors">
+                    ← Volver a Mis Proyectos
+                </button>
+                <h1 id="lblNombreProyecto" class="text-2xl font-bold text-gray-800">Cargando Proyecto...</h1>
+                <p id="lblIdProyecto" class="text-xs text-gray-400 font-mono">ID: ---</p>
+            </div>
+
+            <div
+                class="flex space-x-1 sm:space-x-2 bg-slate-100 p-1 rounded-lg overflow-x-auto hide-scrollbar w-full sm:w-auto">
+                <button id="btnTabLA"
+                    class="px-3 py-2 bg-white shadow text-blue-700 font-semibold rounded-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 transition-colors">Look-Ahead</button>
+                <button id="btnTabPPC"
+                    class="px-3 py-2 text-gray-600 hover:text-blue-600 font-medium rounded-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 transition-colors">Plan
+                    Semanal (PPC)</button>
+                <button id="btnTabDiario"
+                    class="px-3 py-2 text-gray-600 hover:text-blue-600 font-medium rounded-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 transition-colors">Control
+                    Diario</button>
+                <button id="btnTabRestricciones"
+                    class="px-3 py-2 text-gray-600 hover:text-blue-600 font-medium rounded-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 transition-colors">Restricciones</button>
+                <button id="btnTabDashboard"
+                    class="px-3 py-2 text-gray-600 hover:text-blue-600 font-medium rounded-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 transition-colors">Dashboard</button>
+            </div>
+        </header>
+
+        <main id="mainLookAhead"
+            class="bg-white rounded-xl shadow-sm border border-gray-100 flex-grow flex flex-col overflow-hidden mt-4">
+            <div class="p-3 border-b border-gray-200 flex justify-between items-center bg-slate-50 flex-wrap gap-2">
+                <div class="flex items-center space-x-2 sm:space-x-4">
+                    <h2 class="text-sm font-bold text-gray-800 hidden sm:block">Programación Look-Ahead</h2>
+                    <h2 class="text-sm font-bold text-gray-800 sm:hidden">Look-Ahead</h2>
+
+                    <div id="cajaVersiones"
+                        class="flex items-center bg-white border border-gray-200 px-2 py-1 rounded-md shadow-sm">
+                        <span class="w-2 h-2 bg-green-500 rounded-full mr-1.5" id="dotVersion1"></span>
+                        <span id="lblVersionActual"
+                            class="text-[10px] sm:text-xs font-semibold text-gray-600">Actual</span>
+                        <select id="cmbHistorialVersiones"
+                            class="hidden ml-1 text-[10px] sm:text-xs border-none bg-slate-100 text-gray-700 font-semibold cursor-pointer outline-none rounded px-1 py-0.5">
+                            <!-- JS Inyectará las opciones -->
+                        </select>
+
+                        <!-- NUEVO: SEGUNDO MENÚ (Oculto por defecto) -->
+                        <div id="cajaVersionesVs" class="hidden items-center ml-2 pl-2 border-l border-gray-300">
+                            <span class="text-[10px] font-bold text-gray-400 mr-2">VS</span>
+                            <select id="cmbHistorialVersiones2"
+                                class="text-[10px] sm:text-xs border-none bg-purple-50 text-purple-700 font-semibold cursor-pointer outline-none rounded px-1 py-0.5">
+                                <!-- JS Inyectará las opciones -->
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-x-1 sm:space-x-2 flex items-center relative">
+                    <!-- BADGE INFORMATIVO -->
+                    <span id="badgeVentana"
+                        class="hidden sm:inline-flex bg-green-100 text-green-800 text-[10px] font-bold px-2 py-1 rounded-md border border-green-200 uppercase shadow-sm">
+                        🟢 Periodo: Semanas -- al --
+                    </span>
+
+                    <button id="btnGuardarOrden"
+                        class="hidden bg-green-600 text-white px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-green-700 transition shadow-sm items-center animate-pulse">
+                        💾 <span class="hidden sm:inline ml-1">Guardar</span>
+                    </button>
+
+                    <button
+                        class="bg-white border border-gray-300 text-gray-700 px-2 sm:px-3 py-1.5 rounded text-xs font-semibold hover:bg-gray-100 transition shadow-sm flex items-center">
+                        🔍 <span class="hidden sm:inline ml-1">Filtros</span>
+                    </button>
+
+                    <!-- DROPDOWN OPCIONES -->
+                    <div class="relative group z-50">
+                        <button
+                            class="bg-slate-700 text-white px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-slate-800 transition shadow-sm flex items-center">
+                            ⚙️ <span class="hidden sm:inline ml-1">Herramientas ▾</span>
+                        </button>
+                        <div
+                            class="absolute right-0 mt-1 w-56 bg-white border border-gray-200 rounded-md shadow-lg hidden group-hover:block group-focus-within:block flex flex-col py-1">
+
+                            <!-- SELECTOR DE ROL (Solo ADMIN) -->
+                            <div class="px-4 py-2 border-b border-gray-100">
+                                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Rol
+                                    Desempeñado</label>
+                                <select id="cmbRolSimulado"
+                                    class="w-full bg-purple-100 text-purple-800 border border-purple-300 px-2 py-1 rounded text-[10px] font-bold outline-none cursor-pointer shadow-sm uppercase">
+                                    <option value="RESIDENTE">Rol: RESIDENTE</option>
+                                    <option value="SUPERVISION">Rol: SUPERVISIÓN</option>
+                                </select>
+                            </div>
+
+                            <button id="btnToggleComparativo"
+                                class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                                ⚖️ <span class="ml-2">Comparar Versiones</span>
+                            </button>
+                            <button onclick="abrirModalConfigSemanas()"
+                                class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                                🗓️ <span class="ml-2">Establecer Semana</span>
+                            </button>
+                            <button id="btnRegistrarVersion"
+                                class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                                🔒 <span class="ml-2">Registrar Versión</span>
+                            </button>
+                            <div class="border-t border-gray-100 my-1"></div>
+                            <button onclick="document.getElementById('modalEncabezado').classList.remove('hidden')"
+                                class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                                📁 <span class="ml-2">Agregar Encabezado</span>
+                            </button>
+                            <button onclick="document.getElementById('modalActividad').classList.remove('hidden')"
+                                class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                                📝 <span class="ml-2">Agregar Actividad</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center bg-white p-2 border-b border-gray-200 text-xs sm:text-sm">
+                <button class="p-2 text-gray-500 hover:bg-gray-100 rounded-lg font-bold">&larr; Ant</button>
+
+                <div class="flex space-x-1 sm:space-x-2 font-semibold overflow-x-auto hide-scrollbar">
+                    <button id="btnSemana1" onclick="cambiarSemana(1)"
+                        class="tab-semana px-3 sm:px-4 py-1.5 bg-blue-100 text-blue-800 rounded-lg whitespace-nowrap border border-blue-200 shadow-sm transition-all">
+                        Semana 1
+                    </button>
+                    <button id="btnSemana2" onclick="cambiarSemana(2)"
+                        class="tab-semana px-3 sm:px-4 py-1.5 text-gray-600 hover:bg-slate-100 rounded-lg whitespace-nowrap transition-all hidden sm:block">
+                        Semana 2
+                    </button>
+                    <button id="btnSemana3" onclick="cambiarSemana(3)"
+                        class="tab-semana px-3 sm:px-4 py-1.5 text-gray-600 hover:bg-slate-100 rounded-lg whitespace-nowrap transition-all hidden sm:block">
+                        Semana 3
+                    </button>
+                    <button id="btnSemana4" onclick="cambiarSemana(4)"
+                        class="tab-semana px-3 sm:px-4 py-1.5 text-gray-600 hover:bg-slate-100 rounded-lg whitespace-nowrap transition-all hidden sm:block">
+                        Semana 4
+                    </button>
+                </div>
+
+                <button class="p-2 text-gray-500 hover:bg-gray-100 rounded-lg font-bold">Sig &rarr;</button>
+            </div>
+
+            <!-- TABLA PRINCIPAL (ARRIBA) -->
+            <div id="tituloTablaPrincipal"
+                class="hidden w-full bg-blue-600 text-white text-center text-[10px] font-bold py-1 shadow-sm z-10 uppercase tracking-widest">
+                PLANIFICACIÓN: PRINCIPAL</div>
+            <div id="contenedorLookAhead"
+                class="w-full overflow-x-auto overflow-y-auto relative custom-scrollbar transition-all"
+                style="max-height: 60vh;">
+                <table
+                    class="table-fixed w-full min-w-max text-[11px] sm:text-xs text-center text-gray-800 border-collapse whitespace-nowrap">
+                    <thead class="text-xs text-gray-700 bg-slate-100 sticky top-0 z-20 shadow-sm">
+                        <tr class="bg-slate-200" id="trCabeceraFechas">
+                            <th
+                                class="px-1 py-2 border border-slate-300 sticky left-0 z-30 bg-slate-200 w-8 sm:w-10 text-center shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                <input type="checkbox" id="chkSelectAll" class="cursor-pointer rounded">
+                            </th>
+                            <th
+                                class="px-2 py-2 border border-slate-300 sticky left-[32px] sm:left-[40px] z-30 bg-slate-200 w-12 sm:w-16 text-center shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                ÍNDICE</th>
+                            <th
+                                class="px-3 py-2 border border-slate-300 sticky left-[80px] sm:left-[104px] z-30 bg-slate-200 w-48 sm:w-64 text-left truncate shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                DESCRIPCIÓN DE LA ACTIVIDAD</th>
+                            <th class="px-2 py-2 border border-slate-300 w-12 hidden sm:table-cell">UND</th>
+                            <th class="px-2 py-2 border border-slate-300 w-24">SC / RUBRO</th>
+                            <!-- JS Inyecta Días -->
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyLookAhead"></tbody>
+                </table>
+            </div>
+
+            <!-- TABLA SECUNDARIA (ABAJO - MODO COMPARATIVO) -->
+            <div id="contenedorSecundario" class="hidden w-full flex-col border-t-4 border-slate-300 mt-2">
+                <div id="tituloTablaSecundaria"
+                    class="w-full bg-purple-600 text-white text-center text-[10px] font-bold py-1 shadow-sm z-10 uppercase tracking-widest">
+                    PLANIFICACIÓN: SECUNDARIA</div>
+                <div id="contenedorLookAheadSup"
+                    class="w-full overflow-x-auto overflow-y-auto relative custom-scrollbar" style="max-height: 28vh;">
+                    <table
+                        class="table-fixed w-full min-w-max text-[11px] sm:text-xs text-center text-gray-800 border-collapse whitespace-nowrap">
+                        <thead class="text-xs text-gray-700 bg-slate-100 sticky top-0 z-20 shadow-sm">
+                            <tr class="bg-slate-200" id="trCabeceraFechasSup">
+                                <th
+                                    class="px-1 py-2 border border-slate-300 sticky left-0 z-30 bg-slate-200 w-8 sm:w-10 text-center shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                </th>
+                                <th
+                                    class="px-2 py-2 border border-slate-300 sticky left-[32px] sm:left-[40px] z-30 bg-slate-200 w-12 sm:w-16 text-center shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                    ÍNDICE</th>
+                                <th
+                                    class="px-3 py-2 border border-slate-300 sticky left-[80px] sm:left-[104px] z-30 bg-slate-200 w-48 sm:w-64 text-left truncate shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                    DESCRIPCIÓN DE LA ACTIVIDAD</th>
+                                <th class="px-2 py-2 border border-slate-300 w-12 hidden sm:table-cell">UND</th>
+                                <th class="px-2 py-2 border border-slate-300 w-24">SC / RUBRO</th>
+                                <!-- JS Inyecta Días -->
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyLookAheadSup"></tbody>
+                    </table>
+                </div>
+        </main>
+        <!-- CONTENEDOR PLAN SEMANAL (PPC) -->
+        <main id="mainPPC"
+            class="hidden bg-white rounded-xl shadow-sm border border-gray-100 flex-grow flex-col overflow-hidden mt-4">
+
+            <!-- Controles Superiores PPC -->
+            <div class="p-3 border-b border-gray-200 flex justify-between items-center bg-slate-50 flex-wrap gap-2">
+                <div class="flex items-center space-x-2 sm:space-x-4">
+                    <h2 class="text-sm font-bold text-gray-800">Evaluación PPC</h2>
+
+                    <!-- NUEVO: Selector de Historial PPC -->
+                    <div
+                        class="flex items-center bg-white border border-gray-200 px-2 py-1 rounded-md shadow-sm border-l-4 border-indigo-500">
+                        <span class="text-[10px] sm:text-xs font-bold text-indigo-700 mr-2">Versión PPC Guardada:</span>
+                        <select id="cmbHistorialPPC"
+                            class="text-[10px] sm:text-xs border-none bg-indigo-50 text-indigo-700 font-bold cursor-pointer outline-none rounded px-1 py-0.5">
+                            <option value="EDICION" data-file="">Modo Edición</option>
+                        </select>
+                    </div>
+
+                    <div
+                        class="flex items-center bg-white border border-gray-200 px-2 py-1 rounded-md shadow-sm selectores-edicion-ppc">
+                        <span class="text-[10px] sm:text-xs font-semibold text-gray-500 mr-2">Versión Look
+                            Guardada:</span>
+                        <select id="cmbVersionPPC"
+                            class="text-[10px] sm:text-xs border-none bg-slate-100 text-gray-700 font-bold cursor-pointer outline-none rounded px-1 py-0.5">
+                            <option value="">Seleccione Versión...</option>
+                        </select>
+                    </div>
+
+                    <div
+                        class="flex items-center bg-white border border-gray-200 px-2 py-1 rounded-md shadow-sm selectores-edicion-ppc">
+                        <span class="text-[10px] sm:text-xs font-semibold text-gray-500 mr-2">Semana:</span>
+                        <select id="cmbSemanaPPC"
+                            class="text-[10px] sm:text-xs border-none bg-blue-50 text-blue-700 font-bold cursor-pointer outline-none rounded px-1 py-0.5">
+                            <option value="1">Semana 1</option>
+                            <option value="2">Semana 2</option>
+                            <option value="3">Semana 3</option>
+                            <option value="4">Semana 4</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="space-x-1 sm:space-x-2 flex items-center">
+                    <!-- NUEVO: SELECTOR DE ROL PPC (Solo ADMIN) -->
+                    <select id="cmbRolSimuladoPPC"
+                        class="hidden ml-2 bg-purple-100 text-purple-800 border border-purple-300 px-2 py-1 rounded text-[10px] font-bold outline-none cursor-pointer shadow-sm uppercase mr-2">
+                        <option value="RESIDENTE">Rol: RESIDENTE</option>
+                        <option value="SUPERVISION">Rol: SUPERVISIÓN</option>
+                    </select>
+
+                    <button id="btnCargarPPC"
+                        class="bg-blue-600 text-white px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-blue-700 transition shadow-sm flex items-center mr-2">
+                        🔄 <span class="hidden sm:inline ml-1">Cargar Look</span>
+                    </button>
+
+                    <button id="btnGuardarBorradorPPC"
+                        class="hidden bg-yellow-500 text-white px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-yellow-600 transition shadow-sm items-center">
+                        💾 <span class="hidden sm:inline ml-1">Guardar cambios</span>
+                    </button>
+
+                    <button id="btnRegistrarVersionPPC"
+                        class="hidden bg-indigo-600 text-white px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-indigo-700 transition shadow-sm items-center">
+                        🔒 <span class="hidden sm:inline ml-1">Registrar Versión PPC</span>
+                    </button>
+                    <!-- NUEVO BOTÓN PDF -->
+                    <button id="btnExportarPDFPPC"
+                        class="bg-red-600 text-white px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-red-700 transition shadow-sm items-center flex">
+                        📄 <span class="hidden sm:inline ml-1">Exportar PDF</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tabla PPC -->
+            <div id="contenedorTablaPPC"
+                class="w-full overflow-x-auto overflow-y-auto relative custom-scrollbar transition-all"
+                style="max-height: 60vh;">
+                <table
+                    class="table-fixed w-full min-w-max text-[11px] sm:text-xs text-center text-gray-800 border-collapse whitespace-nowrap">
+                    <thead class="text-xs text-gray-700 bg-slate-100 sticky top-0 z-20 shadow-sm">
+                        <tr class="bg-slate-200" id="trCabeceraFechasPPC">
+                            <th
+                                class="px-2 py-2 border border-slate-300 sticky left-0 z-30 bg-slate-200 w-12 sm:w-16 text-center shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                ÍNDICE</th>
+                            <th
+                                class="px-3 py-2 border border-slate-300 sticky left-[48px] sm:left-[64px] z-30 bg-slate-200 w-48 sm:w-64 text-left truncate shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                DESCRIPCIÓN DE LA ACTIVIDAD</th>
+                            <!-- JS Inyectará los 7 Días Aquí -->
+                            <th class="px-2 py-2 border border-slate-400 bg-blue-100 text-blue-900 w-16">PROG.</th>
+                            <th class="px-2 py-2 border border-slate-400 bg-green-100 text-green-900 w-16">CUMP.</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyPPC">
+                        <tr>
+                            <td colspan="11" class="text-center py-10 text-gray-400 font-semibold">Selecciona una
+                                versión y haz clic en "Cargar Datos"</td>
+                        </tr>
+                    </tbody>
+                    <tfoot id="tfootPPC"
+                        class="hidden sticky bottom-0 z-20 bg-slate-800 text-white shadow-[0_-2px_5px_rgba(0,0,0,0.15)] font-bold">
+                        <tr>
+                            <td colspan="2"
+                                class="px-3 py-2 text-right uppercase tracking-wider sticky left-0 bg-slate-800 z-30">
+                                Totales Generales:</td>
+                            <!-- JS inyecta celdas vacías -->
+                            <td id="lblTotalProg"
+                                class="px-2 py-2 text-center text-blue-300 border-l border-slate-600 text-sm">0</td>
+                            <td id="lblTotalCump"
+                                class="px-2 py-2 text-center text-green-400 border-l border-slate-600 text-sm">0</td>
+                        </tr>
+                        <tr>
+                            <td colspan="2"
+                                class="px-3 py-2 text-right uppercase tracking-wider sticky left-0 bg-slate-900 z-30 text-yellow-400">
+                                Indicador PPC (%):</td>
+                            <td colspan="2" id="lblPorcentajePPC"
+                                class="px-2 py-2 text-center bg-slate-900 text-yellow-400 border-l border-slate-600 text-lg">
+                                0%</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <!-- SECCIÓN INFERIOR: RESUMEN DE CNC -->
+            <div id="contenedorResumenCNC" class="hidden w-full flex-col border-t-4 border-slate-300 mt-4 bg-white">
+                <div class="bg-slate-800 p-3 border-b border-slate-700">
+                    <h2 class="text-sm font-bold text-white flex items-center tracking-widest uppercase">
+                        <span class="mr-2">📊</span> Análisis de Causas de No Cumplimiento (CNC)
+                    </h2>
+                </div>
+
+                <!-- Contenedor Dividido (Split View) -->
+                <div class="p-5 grid grid-cols-1 lg:grid-cols-12 gap-6 h-[380px]" id="areaDatosCNC">
+
+                    <!-- COLUMNA IZQUIERDA: GRÁFICO CIRCULAR -->
+                    <div
+                        class="lg:col-span-4 bg-slate-50 border border-gray-200 rounded-lg p-4 shadow-inner flex flex-col h-full">
+                        <h3 class="text-xs font-bold text-gray-600 uppercase mb-2 text-center">Distribución de
+                            Causas</h3>
+                        <div class="flex-grow flex items-center justify-center relative w-full h-full pb-2">
+                            <canvas id="cncChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- COLUMNA DERECHA: TABLA DETALLADA CON SCROLL -->
+                    <div
+                        class="lg:col-span-8 overflow-y-auto custom-scrollbar border border-gray-200 rounded-lg shadow-inner h-full relative">
+                        <table class="w-full text-xs text-left text-gray-700 border-collapse whitespace-nowrap">
+                            <thead
+                                class="text-[10px] uppercase bg-slate-200 text-slate-600 sticky top-0 z-10 shadow-sm">
+                                <tr>
+                                    <th class="px-4 py-3 border-b border-slate-300 w-1/3">Actividad Afectada</th>
+                                    <th class="px-4 py-3 border-b border-slate-300 text-center w-24">Día / Sector
+                                    </th>
+                                    <th class="px-4 py-3 border-b border-slate-300 w-auto">Observación de Campo</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyDetalleCNC">
+                                <!-- JS Inyectará las filas agrupadas aquí -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Estado Vacío (100% PPC) -->
+                <div id="estadoVacioCNC" class="hidden p-10 flex flex-col items-center justify-center text-center">
+                    <span class="text-4xl mb-3">🎉</span>
+                    <h3 class="text-lg font-bold text-green-600">¡Excelente trabajo!</h3>
+                    <p class="text-sm text-gray-500">No hay Causas de No Cumplimiento registradas para esta semana.
+                    </p>
+                </div>
+            </div>
+        </main>
+
+        <!-- CONTENEDOR CONTROL DIARIO -->
+        <main id="mainDiario"
+            class="hidden bg-white rounded-xl shadow-sm border border-gray-100 flex-grow flex-col overflow-hidden mt-4">
+            <div class="p-3 border-b border-gray-200 flex justify-between items-center bg-slate-50 flex-wrap gap-2">
+                <div class="flex items-center space-x-2 sm:space-x-4">
+                    <h2 class="text-sm font-bold text-gray-800">Control Diario</h2>
+                    <input type="date" id="filtroDiarioFecha" class="px-2 py-1 border border-gray-300 rounded text-xs">
+                    <select id="filtroDiarioSC" class="px-2 py-1 border border-gray-300 rounded text-xs bg-white">
+                        <option value="">Todos los sectores</option>
+                    </select>
+                    <button id="btnLimpiarFiltrosDiario"
+                        class="text-gray-500 hover:text-gray-700 text-xs px-2">Limpiar</button>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button id="btnRecargarDiario"
+                        class="bg-gray-100 text-gray-700 px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-gray-200 transition shadow-sm">🔄
+                        Recargar</button>
+                    <button id="btnNuevoRegistroDiario"
+                        class="bg-blue-600 text-white px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-blue-700 transition shadow-sm">＋
+                        Nuevo Registro</button>
+                </div>
+            </div>
+            <div class="w-full overflow-x-auto overflow-y-auto relative custom-scrollbar transition-all"
+                style="max-height: 60vh;">
+                <table
+                    class="table-fixed w-full min-w-max text-[11px] sm:text-xs text-center text-gray-800 border-collapse whitespace-nowrap">
+                    <thead class="text-xs text-gray-700 bg-slate-100 sticky top-0 z-20 shadow-sm">
+                        <tr class="bg-slate-200">
+                            <th class="px-3 py-2 border border-slate-300 w-24">Fecha</th>
+                            <th class="px-3 py-2 border border-slate-300 w-48 text-left">Actividad</th>
+                            <th class="px-3 py-2 border border-slate-300 w-24">Sector</th>
+                            <th class="px-3 py-2 border border-slate-300 w-20">Avance</th>
+                            <th class="px-3 py-2 border border-slate-300 w-32">Personal (HH)</th>
+                            <th class="px-3 py-2 border border-slate-300 w-32">Equipos</th>
+                            <th class="px-3 py-2 border border-slate-300 w-48 text-left">Hallazgos/Problemas</th>
+                            <th class="px-3 py-2 border border-slate-300 w-24">Estado</th>
+                            <th class="px-3 py-2 border border-slate-300 w-24">Rol</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyDiario">
+                    </tbody>
+                </table>
+            </div>
+        </main>
+
+        <!-- CONTENEDOR RESTRICCIONES -->
+        <main id="mainRestricciones"
+            class="hidden bg-white rounded-xl shadow-sm border border-gray-100 flex-grow flex-col overflow-hidden mt-4">
+            <div class="p-3 border-b border-gray-200 flex justify-between items-center bg-slate-50 flex-wrap gap-2">
+                <div class="flex items-center space-x-2 sm:space-x-4">
+                    <h2 class="text-sm font-bold text-gray-800">Restricciones</h2>
+                    <select id="filtroRestriccionEstado"
+                        class="px-2 py-1 border border-gray-300 rounded text-xs bg-white">
+                        <option value="">Todos los estados</option>
+                        <option value="ABIERTO">Abierto</option>
+                        <option value="EN PROCESO">En Proceso</option>
+                        <option value="CERRADO">Cerrado</option>
+                    </select>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button id="btnRecargarRestricciones"
+                        class="bg-gray-100 text-gray-700 px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-gray-200 transition shadow-sm">🔄
+                        Recargar</button>
+                    <button id="btnNuevaRestriccion"
+                        class="bg-red-600 text-white px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-red-700 transition shadow-sm">＋
+                        Nueva Restricción</button>
+                </div>
+            </div>
+            <div class="w-full overflow-x-auto overflow-y-auto relative custom-scrollbar transition-all"
+                style="max-height: 60vh;">
+                <table
+                    class="table-fixed w-full min-w-max text-[11px] sm:text-xs text-center text-gray-800 border-collapse whitespace-nowrap">
+                    <thead class="text-xs text-gray-700 bg-slate-100 sticky top-0 z-20 shadow-sm">
+                        <tr class="bg-slate-200">
+                            <th class="px-3 py-2 border border-slate-300 w-24">ID</th>
+                            <th class="px-3 py-2 border border-slate-300 w-48 text-left">Restricción</th>
+                            <th class="px-3 py-2 border border-slate-300 w-32">Actividad Afectada</th>
+                            <th class="px-3 py-2 border border-slate-300 w-32">Responsable</th>
+                            <th class="px-3 py-2 border border-slate-300 w-24">F. Identificación</th>
+                            <th class="px-3 py-2 border border-slate-300 w-24">F. Requerida</th>
+                            <th class="px-3 py-2 border border-slate-300 w-24">Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyRestricciones">
+                    </tbody>
+                </table>
+            </div>
+        </main>
+
+        <!-- CONTENEDOR DASHBOARD (PROYECTO) -->
+        <main id="mainDashboard"
+            class="hidden bg-white rounded-xl shadow-sm border border-gray-100 flex-grow flex-col overflow-hidden mt-4 p-4">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Dashboard (KPIs y Gráficos)</h2>
+            <div id="dashboardContent" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div
+                    class="bg-slate-50 border border-gray-200 p-4 rounded-lg shadow-sm flex flex-col items-center justify-center h-48">
+                    <span class="text-gray-400">Gráfico PPC (Próximamente)</span>
+                </div>
+                <div
+                    class="bg-slate-50 border border-gray-200 p-4 rounded-lg shadow-sm flex flex-col items-center justify-center h-48">
+                    <span class="text-gray-400">Gráfico Restricciones (Próximamente)</span>
+                </div>
+            </div>
+        </main>
+
+    </div>
+
+    <!-- MODALES DE CREACIÓN Y EDICIÓN -->
+    <div id="modalEncabezado"
+        class="hidden fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 transform transition-all">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                <span class="bg-slate-200 text-slate-700 px-2 py-1 rounded text-xs mr-2">Fase</span>
+                Nuevo Encabezado
+            </h3>
+            <div class="mb-5">
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Descripción del Encabezado</label>
+                <input type="text" id="txtDescEncabezado" placeholder="Ej: CIMENTACIÓN"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-slate-500 outline-none text-sm uppercase">
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button onclick="document.getElementById('modalEncabezado').classList.add('hidden')"
+                    class="px-4 py-2 text-gray-600 font-semibold text-sm hover:bg-gray-100 rounded-lg transition-colors">Cancelar</button>
+                <button id="btnGuardarEncabezado"
+                    class="px-4 py-2 bg-slate-700 text-white font-bold text-sm rounded-lg hover:bg-slate-800 transition-colors shadow-sm">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalActividad"
+        class="hidden fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 transform transition-all">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                <span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs mr-2">Tarea</span>
+                Nueva Actividad
+            </h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Pertenece al Encabezado:</label>
+                    <select id="cmbPadreActividad"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50">
+                        <option value="">Seleccione un encabezado...</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Descripción de la Actividad</label>
+                    <input type="text" id="txtDescActividad" placeholder="Ej: VACIADO DE CONCRETO ZAPATAS"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm uppercase">
+                </div>
+                <div class="flex space-x-4">
+                    <div class="w-1/3">
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Unidad</label>
+                        <input type="text" id="txtUndActividad" placeholder="Ej: m3"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm uppercase">
+                    </div>
+                    <div class="w-2/3">
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Subcontrata / Rubro</label>
+                        <input type="text" id="txtScActividad" placeholder="Ej: JYV"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm uppercase">
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end space-x-2 mt-6">
+                <button onclick="document.getElementById('modalActividad').classList.add('hidden')"
+                    class="px-4 py-2 text-gray-600 font-semibold text-sm hover:bg-gray-100 rounded-lg transition-colors">Cancelar</button>
+                <button id="btnGuardarActividad"
+                    class="px-4 py-2 bg-blue-600 text-white font-bold text-sm rounded-lg hover:bg-blue-700 transition-colors shadow-sm">Guardar
+                    Tarea</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalEditar"
+        class="hidden fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 transform transition-all">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                <span class="bg-orange-100 text-orange-700 px-2 py-1 rounded text-xs mr-2">Editar</span>
+                Modificar Nombre
+            </h3>
+
+            <input type="hidden" id="txtEditIdActividad">
+
+            <div class="mb-5">
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Nueva Descripción</label>
+                <input type="text" id="txtEditDesc"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none text-sm uppercase">
+            </div>
+
+            <div class="flex justify-end space-x-2">
+                <button onclick="document.getElementById('modalEditar').classList.add('hidden')"
+                    class="px-4 py-2 text-gray-600 font-semibold text-sm hover:bg-gray-100 rounded-lg transition-colors">Cancelar</button>
+                <button id="btnGuardarEdicion"
+                    class="px-4 py-2 bg-orange-500 text-white font-bold text-sm rounded-lg hover:bg-orange-600 transition-colors shadow-sm">Guardar
+                    Cambios</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalVersion"
+        class="hidden fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 transform transition-all">
+            <h3 class="text-lg font-bold text-gray-800 mb-2 flex items-center">🔒 Registrar Versión</h3>
+            <p class="text-xs text-gray-500 mb-4">Esta acción creará una versión inalterable del Look-Ahead actual en el
+                historial.</p>
+            <div class="mb-5">
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Comentario (Obligatorio)</label>
+                <input type="text" id="txtComentarioVersion" placeholder="Ej: Aprobado en reunión semanal"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none text-sm">
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button onclick="document.getElementById('modalVersion').classList.add('hidden')"
+                    class="px-4 py-2 text-gray-600 font-semibold text-sm hover:bg-gray-100 rounded-lg transition-colors">Cancelar</button>
+                <button id="btnGuardarVersion"
+                    class="px-4 py-2 bg-indigo-600 text-white font-bold text-sm rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">Confirmar
+                    Versión</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MENÚ FLOTANTE (CONTEXTUAL) -->
+    <div id="menuProgramacion"
+        class="hidden fixed bg-white shadow-2xl rounded-lg border border-gray-200 z-[100] w-48 overflow-hidden transform scale-95 opacity-0 transition-all duration-150 origin-top-left">
+        <ul class="text-sm text-gray-700 font-medium">
+            <li id="btnMenuAsignar"
+                class="hover:bg-blue-50 px-4 py-2.5 cursor-pointer border-b border-gray-100 flex items-center transition-colors">
+                <span class="mr-2 text-blue-600">🎨</span> Asignar Sector
+            </li>
+            <li id="btnMenuCopiarFormato"
+                class="hover:bg-slate-50 px-4 py-2.5 cursor-pointer border-b border-gray-100 flex items-center transition-colors">
+                <span class="mr-2 text-slate-600">🖌️</span> Copiar color
+            </li>
+            <li id="btnMenuCopiarSector"
+                class="hover:bg-slate-50 px-4 py-2.5 cursor-pointer border-b border-gray-100 flex items-center transition-colors">
+                <span class="mr-2 text-slate-600">📋</span> Copiar Sector
+            </li>
+            <li id="btnMenuEliminar"
+                class="hover:bg-red-50 px-4 py-2.5 cursor-pointer border-b border-gray-100 text-red-600 flex items-center transition-colors">
+                <span class="mr-2">🗑️</span> Limpiar Sector
+            </li>
+            <!-- NUEVO BOTÓN MOVER -->
+            <li id="btnMenuMover"
+                class="hover:bg-amber-50 px-4 py-2.5 cursor-pointer text-amber-600 flex items-center transition-colors font-semibold">
+                <span class="mr-2">↔️</span> Mover Sector
+            </li>
+        </ul>
+    </div>
+
+    <!-- MODAL: ASIGNAR SECTOR -->
+    <div id="modalSector"
+        class="hidden fixed inset-0 bg-slate-900/60 z-[110] flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-xs p-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">🎨 Asignar Sector</h3>
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Nombre del Sector</label>
+                <input type="text" id="txtNombreSector" placeholder="Ej: SECTOR 1"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm uppercase">
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-xs font-bold text-gray-700 mb-1">O copiar de un Sector Existente</label>
+                <select id="cmbSectoresRecientes"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50">
+                    <option value="">(Ninguno)</option>
+                </select>
+            </div>
+
+            <!-- Selector de Color Infinito -->
+            <div class="mb-6 flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700">Color del Sector</label>
+                    <span class="text-[10px] text-gray-500">Haz clic para personalizar</span>
+                </div>
+                <input type="color" id="txtColorSector" value="#3b82f6"
+                    class="w-10 h-10 border-0 rounded cursor-pointer bg-transparent">
+            </div>
+
+            <div class="flex justify-end space-x-2">
+                <button onclick="document.getElementById('modalSector').classList.add('hidden')"
+                    class="px-4 py-2 text-gray-600 font-semibold text-sm hover:bg-gray-100 rounded-lg">Cancelar</button>
+                <button id="btnConfirmarSector"
+                    class="px-4 py-2 bg-blue-600 text-white font-bold text-sm rounded-lg hover:bg-blue-700 shadow-sm">Aplicar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- BANNER MODO PEGAR FORMATO -->
+    <div id="bannerModoPegado"
+        class="hidden fixed top-4 left-1/2 transform -translate-x-1/2 z-[100] bg-indigo-600 text-white px-5 py-2.5 rounded-full shadow-2xl font-bold text-sm flex items-center animate-bounce">
+        <span>🖌️ Haz clic en el sector (origen) que deseas copiar...</span>
+        <button onclick="cancelarModoPegado()" class="ml-4 text-indigo-200 hover:text-white transition-colors">✕
+            Cancelar</button>
+    </div>
+
+    <!-- BANNER MODO MOVER BLOQUE -->
+    <div id="bannerModoMover"
+        class="hidden fixed top-4 left-1/2 transform -translate-x-1/2 z-[100] bg-amber-500 text-white px-5 py-2.5 rounded-full shadow-2xl font-bold text-sm flex items-center animate-bounce">
+        <span>↔️ Haz clic en el día destino (misma fila) para desplazar...</span>
+        <button onclick="cancelarModoMover()" class="ml-4 text-amber-200 hover:text-white transition-colors">✕
+            Cancelar</button>
+    </div>
+
+    <!-- MODAL CONFIRMAR PEGADO -->
+    <div id="modalConfirmarPegado"
+        class="hidden fixed inset-0 bg-slate-900/60 z-[110] flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 text-center transform transition-all">
+            <h3 class="text-lg font-bold text-gray-800 mb-2">Pegar Formato de Sector</h3>
+            <p class="text-sm text-gray-600 mb-4">¿Deseas aplicar este sector a las celdas que acabas de seleccionar?
+            </p>
+
+            <div
+                class="flex items-center justify-center space-x-3 mb-6 bg-slate-50 py-3 rounded-lg border border-slate-200">
+                <div id="colorPegadoPrevia" class="w-6 h-6 rounded shadow-sm border border-gray-300"></div>
+                <span id="lblSectorPegado" class="font-bold text-gray-800 uppercase tracking-wide"></span>
+            </div>
+
+            <div class="flex justify-center space-x-2">
+                <button onclick="cancelarModoPegado()"
+                    class="px-4 py-2 text-gray-600 font-semibold text-sm hover:bg-gray-100 rounded-lg">Cancelar</button>
+                <button id="btnConfirmarPegado"
+                    class="px-4 py-2 bg-indigo-600 text-white font-bold text-sm rounded-lg hover:bg-indigo-700 shadow-sm">Aplicar
+                    Formato</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: CONFIGURAR SEMANAS -->
+    <div id="modalConfigSemanas"
+        class="hidden fixed inset-0 bg-slate-900/60 z-[110] flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-2 flex items-center">🗓️ Rango de Semanas</h3>
+            <p class="text-xs text-gray-500 mb-4">Define en qué momento de la obra arranca este Look-Ahead.</p>
+
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Fecha de Inicio (Debe ser un
+                    Lunes)</label>
+                <input type="date" id="txtFechaLunes"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-semibold text-gray-700">
+            </div>
+            <div class="mb-5">
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Semana de Obra (Ej: 1, 10, 24)</label>
+                <input type="number" id="txtSemanaInicio" placeholder="Ej: 1" value="1" min="1"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-semibold text-gray-700">
+            </div>
+
+            <div class="flex justify-end space-x-2">
+                <button onclick="document.getElementById('modalConfigSemanas').classList.add('hidden')"
+                    class="px-4 py-2 text-gray-600 font-semibold text-sm hover:bg-gray-100 rounded-lg">Cancelar</button>
+                <button id="btnGuardarConfigSemanas"
+                    class="px-4 py-2 bg-indigo-600 text-white font-bold text-sm rounded-lg hover:bg-indigo-700 shadow-sm">Guardar
+                    y Recalcular</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: CAUSA DE NO CUMPLIMIENTO (CNC) -->
+    <div id="modalCNC"
+        class="hidden fixed inset-0 bg-slate-900/60 z-[110] flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
+            <h3 class="text-lg font-bold text-red-600 mb-2 flex items-center">⚠️ No Cumplido</h3>
+            <p class="text-xs text-gray-500 mb-4">Selecciona el motivo por el cual no se cumplió esta actividad.</p>
+
+            <div class="mb-3">
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Causa de No Cumplimiento (CNC)</label>
+                <select id="cmbListaCNC"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none text-sm font-semibold text-gray-700 bg-slate-50">
+                    <option value="">Cargando causas...</option>
+                </select>
+            </div>
+
+            <div class="mb-5">
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Observación (Opcional)</label>
+                <input type="text" id="txtObservacionCNC" placeholder="Detalle adicional..."
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none text-sm text-gray-700">
+            </div>
+
+            <div class="flex justify-end space-x-2">
+                <button onclick="document.getElementById('modalCNC').classList.add('hidden')"
+                    class="px-4 py-2 text-gray-600 font-semibold text-sm hover:bg-gray-100 rounded-lg">Cancelar</button>
+                <button id="btnConfirmarCNC"
+                    class="px-4 py-2 bg-red-600 text-white font-bold text-sm rounded-lg hover:bg-red-700 shadow-sm">Aplicar
+                    Achurado</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: REGISTRAR VERSIÓN PPC -->
+    <div id="modalVersionPPC"
+        class="hidden fixed inset-0 bg-slate-900/60 z-[110] flex items-center justify-center backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 transform transition-all">
+            <h3 class="text-lg font-bold text-gray-800 mb-2 flex items-center">🔒 Cerrar Semana PPC</h3>
+            <p class="text-xs text-gray-500 mb-4">Se creará un archivo congelado con los resultados finales de esta
+                semana.</p>
+            <div class="mb-5">
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Comentario / Resumen</label>
+                <input type="text" id="txtComentarioVersionPPC" placeholder="Ej: Cierre de Semana 1 completo"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none text-sm">
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button onclick="document.getElementById('modalVersionPPC').classList.add('hidden')"
+                    class="px-4 py-2 text-gray-600 font-semibold text-sm hover:bg-gray-100 rounded-lg transition-colors">Cancelar</button>
+                <button id="btnGuardarVersionPPC"
+                    class="px-4 py-2 bg-indigo-600 text-white font-bold text-sm rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">Confirmar
+                    y Guardar</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- MODAL: NUEVO REGISTRO DIARIO -->
+    <div id="modalNuevoRegistroDiario"
+        class="hidden fixed inset-0 bg-slate-900/60 z-[110] flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">📝 Nuevo Registro Diario</h3>
+
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div class="col-span-2">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Actividad</label>
+                    <select id="cmbActividadDiario"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50">
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Fecha</label>
+                    <input type="date" id="txtFechaDiario"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Sector / Ubicación</label>
+                    <input type="text" id="txtSectorDiario" placeholder="Ej: SECTOR 1"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm uppercase">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Avance / Metrado</label>
+                    <input type="text" id="txtAvanceDiario" placeholder="Ej: 50 m3"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Personal (HH / Categorías)</label>
+                    <input type="text" id="txtPersonalHH" placeholder="Ej: 2O + 1P"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                </div>
+                <div class="col-span-2">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Equipos Usados</label>
+                    <input type="text" id="txtEquiposDiario" placeholder="Ej: Retroexcavadora"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                </div>
+                <div class="col-span-2">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Hallazgos o Problemas</label>
+                    <textarea id="txtHallazgosDiario" rows="2"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm resize-none"
+                        placeholder="Observaciones en campo..."></textarea>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-2 mt-4">
+                <button id="btnCancelarRegistroDiario"
+                    class="px-4 py-2 text-gray-600 font-semibold text-sm hover:bg-gray-100 rounded-lg">Cancelar</button>
+                <button id="btnConfirmarRegistroDiario"
+                    class="px-4 py-2 bg-blue-600 text-white font-bold text-sm rounded-lg hover:bg-blue-700 shadow-sm">Guardar
+                    Registro</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: NUEVA RESTRICCIÓN -->
+    <div id="modalNuevaRestriccion"
+        class="hidden fixed inset-0 bg-slate-900/60 z-[110] flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">🚧 Nueva Restricción</h3>
+
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div class="col-span-2">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Descripción de la Restricción</label>
+                    <input type="text" id="txtDescRestriccion" placeholder="Ej: Falta diseño estructural"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none text-sm">
+                </div>
+                <div class="col-span-2">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Actividad Afectada (Opcional)</label>
+                    <select id="cmbActividadRestriccion"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none text-sm bg-slate-50">
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Responsable</label>
+                    <input type="text" id="txtResponsableRestriccion" placeholder="Ej: Juan Perez"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Estado</label>
+                    <select id="cmbEstadoRestriccion"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none text-sm bg-slate-50">
+                        <option value="ABIERTO">Abierto</option>
+                        <option value="EN PROCESO">En Proceso</option>
+                        <option value="CERRADO">Cerrado</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Fecha Identificación</label>
+                    <input type="date" id="txtFechaIdenRestriccion"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Fecha Requerida</label>
+                    <input type="date" id="txtFechaReqRestriccion"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none text-sm">
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-2 mt-4">
+                <button id="btnCancelarRestriccion"
+                    class="px-4 py-2 text-gray-600 font-semibold text-sm hover:bg-gray-100 rounded-lg">Cancelar</button>
+                <button id="btnConfirmarRestriccion"
+                    class="px-4 py-2 bg-red-600 text-white font-bold text-sm rounded-lg hover:bg-red-700 shadow-sm">Guardar
+                    Restricción</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- TOAST NOTIFICATION -->
+    <div id="toastDiario"
+        class="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-semibold opacity-0 pointer-events-none transition-opacity duration-300 z-[200]">
+        Notificación
+    </div>
+
+    <!-- Conexion a la Base de Datos y API -->
+    <script src="assets/js/database/config.js"></script>
+    <script src="assets/js/database/state.js"></script>
+    <script src="assets/js/services/api.js"></script>
+
+    <!-- Logica de la Interfaz -->
+    <script src="assets/js/auth/session.js"></script>
+    <script src="assets/js/core/dashboard.js"></script>
+    <script src="assets/js/core/lookahead.js"></script>
+    <script src="assets/js/core/ppc.js"></script>
+    <script src="assets/js/core/diario.js"></script>
+    <script src="assets/js/core/restricciones.js"></script>
+
+</body>
+
+</html>
