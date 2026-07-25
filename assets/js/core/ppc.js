@@ -684,86 +684,286 @@ document.getElementById('btnGuardarVersionPPC').addEventListener('click', async 
 });
 
 // =========================================================
-// 7. EXPORTAR TABLA A PDF (MEDIANTE CAPTURA PERFECTA)
+// 7. EXPORTAR REPORTE A PDF (VÍA PLANTILLA NATIVA A4 HORIZONTAL)
 // =========================================================
 document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
+    // 1. RECOLECTAR DATOS DE LA CABECERA
     const btn = document.getElementById('btnExportarPDFPPC');
     const originalText = btn.innerHTML;
-    btn.innerHTML = `⏳ <span class="hidden sm:inline ml-1">Generando PDF...</span>`;
+    btn.innerHTML = `⏳ <span class="hidden sm:inline ml-1">Generando...</span>`;
     btn.disabled = true;
 
-    const contenedor = document.getElementById('contenedorTablaPPC');
+    // Obtener nombres y detalles del entorno
+    const nombreProyecto = document.getElementById('lblNombreProyecto').innerText;
+    const semanaSel = document.getElementById('cmbSemanaPPC');
+    const semanaNombre = semanaSel.options[semanaSel.selectedIndex].text;
+    const versionBase = document.getElementById('cmbVersionPPC').value || "Actual";
+    
+    let rolEvaluado = AppState.rolGlobalReal;
+    if (AppState.rolGlobalReal === "ADMIN") {
+        const cmbRol = document.getElementById('cmbRolSimuladoPPC');
+        if (cmbRol) rolEvaluado = cmbRol.value;
+    }
 
-    // 1. Quitar los límites de scroll temporalmente para expandir la tabla
-    contenedor.classList.remove('max-h-[60vh]', 'overflow-auto');
-    contenedor.style.maxHeight = 'none';
-    contenedor.style.overflow = 'visible';
+    const versionInfo = AppState.listaVersionesGlobal.find(v => v.numero === versionBase);
+    const rolVersionBase = versionInfo && versionInfo.rol ? String(versionInfo.rol).trim().toUpperCase() : "RESIDENTE";
 
-    // 2. Apagar el efecto "inmovilizado" (sticky)
-    const elementosSticky = contenedor.querySelectorAll('.sticky');
-    elementosSticky.forEach(el => {
-        el.style.setProperty('position', 'static', 'important');
+    // 2. CONSTRUIR CABECERA DE DÍAS (TH)
+    const diasNombres = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+    let htmlCabeceraDias = '';
+    ppc_fechasSemana.forEach((f, i) => {
+        htmlCabeceraDias += `<th class="col-dia">${f.substring(0, 5)}<br><span style="font-weight: normal; font-size: 9px;">${diasNombres[i]}</span></th>`;
     });
 
-    // 3. Darle 300ms al navegador para redibujar y luego tomar la foto
-    setTimeout(() => {
-        html2canvas(contenedor, {
-            scale: 2, // Alta resolución
-            useCORS: true,
-            backgroundColor: '#ffffff'
-        }).then(canvas => {
-            // 4. Restaurar la vista web a la normalidad
-            contenedor.classList.add('max-h-[60vh]', 'overflow-auto');
-            contenedor.style.maxHeight = '';
-            contenedor.style.overflow = '';
-            elementosSticky.forEach(el => {
-                el.style.removeProperty('position');
+    // 3. CONSTRUIR LAS FILAS DE LA TABLA (TR)
+    let htmlFilasActividades = '';
+    let sumProg = 0;
+    let sumCump = 0;
+
+    ppc_actividades.forEach(act => {
+        if (act.id.startsWith('ENC') || act.tipo === 'ENCABEZADO') {
+            htmlFilasActividades += `
+                <tr class="fila-encabezado">
+                    <td class="col-indice">${act.indice}</td>
+                    <td colspan="10" style="text-align: left; padding-left: 8px;">${act.descripcion}</td>
+                </tr>`;
+        } else {
+            let celdasHTML = '';
+            let progFila = 0;
+            let cumpFila = 0;
+
+            ppc_fechasSemana.forEach(fStr => {
+                let p = ppc_programacion.find(x => x.idActividad === act.id && normFecha(x.fecha) === fStr && String(x.rol || "RESIDENTE").trim().toUpperCase() === rolVersionBase);
+
+                if (p && (p.sector || p.color)) {
+                    progFila++;
+                    let borrador = ppc_borradores.find(b => b.idActividad === act.id && b.fecha === fStr);
+                    if (borrador) {
+                        celdasHTML += `<td class="celda-sector hatch-no-cumplido" style="background-color: ${p.color};">${p.sector || ''}</td>`;
+                    } else {
+                        cumpFila++;
+                        celdasHTML += `<td class="celda-sector" style="background-color: ${p.color};">${p.sector || ''}</td>`;
+                    }
+                } else {
+                    celdasHTML += `<td></td>`;
+                }
             });
 
-            // 5. Convertir el Canvas a una imagen JPG de alta calidad
-            const imgData = canvas.toDataURL('image/jpeg', 0.98);
+            if (progFila > 0) {
+                sumProg += progFila;
+                sumCump += cumpFila;
+                let estiloFallo = cumpFila === progFila ? '' : 'color: #ea580c; background-color: #fff7ed;';
 
-            // 6. Crear el PDF (A4 en formato Horizontal/Landscape)
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF('l', 'mm', 'a4');
-
-            // Calcular escalas para que la imagen encaje perfecto en la hoja
-            const pdfWidth = doc.internal.pageSize.getWidth();
-            const pdfHeight = doc.internal.pageSize.getHeight();
-            const margin = 10; // 10mm de margen
-            const maxImgWidth = pdfWidth - (margin * 2);
-            const maxImgHeight = pdfHeight - (margin * 2);
-
-            const imgProps = doc.getImageProperties(imgData);
-            let finalWidth = maxImgWidth;
-            let finalHeight = (imgProps.height * finalWidth) / imgProps.width;
-
-            // Si la imagen sigue siendo muy alta, escalarla por el alto en su lugar
-            if (finalHeight > maxImgHeight) {
-                finalHeight = maxImgHeight;
-                finalWidth = (imgProps.width * finalHeight) / imgProps.height;
+                htmlFilasActividades += `
+                    <tr>
+                        <td class="col-indice">${act.indice}</td>
+                        <td class="col-desc">${act.descripcion}</td>
+                        ${celdasHTML}
+                        <td class="col-prog">${progFila}</td>
+                        <td class="col-cump" style="${estiloFallo}">${cumpFila}</td>
+                    </tr>`;
             }
+        }
+    });
 
-            // Centrar horizontalmente si sobra espacio
-            const x = (pdfWidth - finalWidth) / 2;
-            const y = margin; // Pegado arriba respetando el margen
+    // 4. CONSTRUIR DATOS DEL CNC Y GRÁFICO
+    let htmlDetalleCNC = '';
+    let labelsGrafico = [];
+    let datosGrafico = [];
+    let gruposCNC = {};
 
-            // Insertar la imagen y guardar el PDF
-            doc.addImage(imgData, 'JPEG', x, y, finalWidth, finalHeight);
+    ppc_borradores.forEach(borrador => {
+        const idCausa = borrador.idCNC;
+        const cnc = ppc_catalogoCNC.find(c => c.id === idCausa);
+        const descCNC = `${idCausa} - ${cnc ? cnc.descripcion : "CAUSA NO DEFINIDA"}`;
 
-            const semana = document.getElementById('cmbSemanaPPC').options[document.getElementById('cmbSemanaPPC').selectedIndex].text;
-            const version = document.getElementById('cmbVersionPPC').value || 'Base';
-            const nombreArchivo = `Reporte_PPC_${semana}_${version}.pdf`.replace(/ /g, "_");
+        const act = ppc_actividades.find(a => a.id === borrador.idActividad);
+        const descActividad = act ? `[${act.indice}] ${act.descripcion}` : "Actividad desconocida";
 
-            doc.save(nombreArchivo);
+        let sector = "";
+        const prog = ppc_programacion.find(p => p.idActividad === borrador.idActividad && normFecha(p.fecha) === borrador.fecha);
+        if (prog) sector = prog.sector;
 
-            btn.innerHTML = originalText;
-            btn.disabled = false;
-        }).catch(err => {
-            console.error(err);
-            alert("Error al generar el PDF.");
-            btn.innerHTML = originalText;
-            btn.disabled = false;
+        let diaIdx = ppc_fechasSemana.indexOf(borrador.fecha);
+        let diaNombre = diaIdx !== -1 ? `${diasNombres[diaIdx]} ${borrador.fecha.substring(0, 2)}` : borrador.fecha;
+
+        if (!gruposCNC[descCNC]) gruposCNC[descCNC] = { nombre: descCNC, incidencias: [] };
+        gruposCNC[descCNC].incidencias.push({
+            actividad: descActividad,
+            diaSector: `${diaNombre}<br><b>${sector}</b>`,
+            observacion: borrador.observacion || "Sin observación"
         });
-    }, 300);
+    });
+
+    Object.values(gruposCNC).forEach(grupo => {
+        labelsGrafico.push(grupo.nombre);
+        datosGrafico.push(grupo.incidencias.length);
+
+        htmlDetalleCNC += `
+            <tr>
+                <td colspan="3" class="cnc-grupo-cabecera">
+                    📦 ${grupo.nombre} <span class="badge-incidencia">${grupo.incidencias.length} Incidencia(s)</span>
+                </td>
+            </tr>`;
+
+        grupo.incidencias.forEach(inc => {
+            htmlDetalleCNC += `
+                <tr>
+                    <td style="font-weight: bold; color: #475569;">${inc.actividad}</td>
+                    <td style="text-align: center;">${inc.diaSector}</td>
+                    <td style="font-style: italic; color: #64748b;">"${inc.observacion}"</td>
+                </tr>`;
+        });
+    });
+
+    // Cálculo del porcentaje
+    let pctNum = sumProg > 0 ? ((sumCump / sumProg) * 100).toFixed(2) : "0.00";
+    let mostrarCNC = sumProg === sumCump ? 'display: none;' : '';
+
+    // 5. INYECTAR TODO EN LA PLANTILLA HTML
+    const htmlPlantilla = `
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <title>Reporte PPC - ${semanaNombre}</title>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"><\/script>
+        <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"><\/script>
+        <style>
+            @page { size: A4 landscape; margin: 10mm 15mm 15mm 15mm; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; box-sizing: border-box; }
+            body { font-family: 'Arial', sans-serif; margin: 0; padding: 0; background-color: white; color: #333; font-size: 11px; }
+            .header-container { display: flex; border-bottom: 3px solid #0f172a; padding-bottom: 12px; margin-bottom: 20px; align-items: flex-end; page-break-inside: avoid; }
+            .header-title { flex-grow: 1; }
+            .header-title h1 { margin: 0; font-size: 22px; text-transform: uppercase; color: #0f172a; letter-spacing: 1px; }
+            .header-title h2 { margin: 5px 0 0 0; font-size: 14px; color: #2563eb; }
+            .header-info { text-align: right; font-size: 11px; line-height: 1.5; color: #64748b; }
+            .header-info span { font-weight: bold; color: #0f172a; }
+            .tabla-ppc { width: 100%; border-collapse: collapse; margin-bottom: 15px; text-align: center; }
+            .tabla-ppc thead { display: table-header-group; }
+            .tabla-ppc tr { page-break-inside: avoid; break-inside: avoid; }
+            .tabla-ppc th { background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 8px 4px; font-size: 10px; font-weight: bold; }
+            .tabla-ppc td { border: 1px solid #cbd5e1; padding: 6px 4px; font-size: 10px; }
+            .col-indice { width: 5%; font-weight: bold; color: #64748b; }
+            .col-desc { width: 35%; text-align: left; padding-left: 8px !important; font-weight: bold; color: #1e293b; }
+            .col-dia { width: 7%; }
+            .col-prog { width: 5.5%; background-color: #eff6ff; color: #1d4ed8; font-weight: bold; }
+            .col-cump { width: 5.5%; background-color: #f0fdf4; color: #15803d; font-weight: bold; }
+            .fila-encabezado td { background-color: #fef08a !important; color: #854d0e !important; font-weight: 900; font-size: 11px; }
+            .celda-sector { color: white; font-weight: bold; text-shadow: 1px 1px 2px rgba(0,0,0,0.3); }
+            .hatch-no-cumplido { background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.6), rgba(255,255,255,0.6) 4px, transparent 4px, transparent 8px) !important; border: 2px solid #ef4444 !important; color: #000 !important; text-shadow: none; }
+            .resumen-totales { display: flex; flex-direction: column; border: 2px solid #0f172a; margin-bottom: 25px; page-break-inside: avoid; }
+            .totales-row { display: flex; background-color: #1e293b; color: white; }
+            .totales-lbl { flex-grow: 1; text-align: right; padding: 8px 15px; font-size: 11px; font-weight: bold; text-transform: uppercase; border-right: 1px solid #334155; }
+            .totales-val-prog, .totales-val-cump { width: 5.5%; text-align: center; padding: 8px 2px; font-weight: bold; font-size: 12px; }
+            .totales-val-prog { color: #93c5fd; border-right: 1px solid #334155; }
+            .totales-val-cump { color: #4ade80; }
+            .indicador-row { display: flex; background-color: #0f172a; color: #facc15; border-top: 1px solid #334155; }
+            .indicador-val { width: 11%; text-align: center; padding: 8px 2px; font-weight: 900; font-size: 14px; }
+            .seccion-cnc { page-break-inside: avoid; break-inside: avoid; border-top: 3px solid #cbd5e1; padding-top: 15px; }
+            .cnc-titulo { font-size: 14px; font-weight: 900; color: #0f172a; text-transform: uppercase; margin: 0 0 15px 0; }
+            .cnc-contenedor { display: flex; gap: 20px; align-items: stretch; }
+            .cnc-grafico { width: 35%; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 15px; text-align: center; }
+            .cnc-grafico h3 { margin: 0 0 10px 0; font-size: 11px; color: #64748b; text-transform: uppercase; }
+            .cnc-detalle { width: 65%; border-collapse: collapse; align-self: flex-start; }
+            .cnc-detalle th { background-color: #e2e8f0; color: #475569; padding: 8px; text-align: left; border-bottom: 2px solid #cbd5e1; }
+            .cnc-detalle td { padding: 8px; border-bottom: 1px solid #f1f5f9; }
+            .cnc-grupo-cabecera { background-color: #f8fafc; font-weight: bold; color: #0f172a; border-bottom: 1px solid #e2e8f0 !important; font-size: 11px; }
+            .badge-incidencia { background-color: #dbeafe; color: #1e40af; padding: 3px 8px; border-radius: 12px; font-size: 9px; margin-left: 10px; }
+        </style>
+    </head>
+    <body>
+        <div class="header-container">
+            <div class="header-title">
+                <h1>Reporte Semanal PPC</h1>
+                <h2>Proyecto: ${nombreProyecto}</h2>
+            </div>
+            <div class="header-info">
+                <p><span>Semana Evaluada:</span> ${semanaNombre}</p>
+                <p><span>Versión Base:</span> ${versionBase}</p>
+                <p><span>Rol Evaluado:</span> ${rolEvaluado}</p>
+            </div>
+        </div>
+        <table class="tabla-ppc">
+            <thead>
+                <tr>
+                    <th class="col-indice">ÍNDICE</th>
+                    <th class="col-desc">DESCRIPCIÓN DE LA ACTIVIDAD</th>
+                    ${htmlCabeceraDias}
+                    <th class="col-prog">PROG.</th>
+                    <th class="col-cump">CUMP.</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${htmlFilasActividades || '<tr><td colspan="11">No hay datos en esta evaluación</td></tr>'}
+            </tbody>
+        </table>
+        <div class="resumen-totales">
+            <div class="totales-row">
+                <div class="totales-lbl">Totales Generales:</div>
+                <div class="totales-val-prog">${sumProg}</div>
+                <div class="totales-val-cump">${sumCump}</div>
+            </div>
+            <div class="indicador-row">
+                <div class="totales-lbl">Indicador PPC (%):</div>
+                <div class="indicador-val">${pctNum}%</div>
+            </div>
+        </div>
+        <div class="seccion-cnc" style="${mostrarCNC}">
+            <h3 class="cnc-titulo">📊 Análisis de Causas de No Cumplimiento (CNC)</h3>
+            <div class="cnc-contenedor">
+                <div class="cnc-grafico">
+                    <h3>Distribución de Causas</h3>
+                    <div style="position: relative; height: 200px; width: 100%; display: flex; justify-content: center;">
+                        <canvas id="pdfChart"></canvas>
+                    </div>
+                </div>
+                <table class="cnc-detalle">
+                    <thead><tr><th style="width: 45%;">Actividad Afectada</th><th style="width: 20%; text-align: center;">Día / Sector</th><th style="width: 35%;">Observación de Campo</th></tr></thead>
+                    <tbody>${htmlDetalleCNC}</tbody>
+                </table>
+            </div>
+        </div>
+        <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                const labels = ${JSON.stringify(labelsGrafico)};
+                const data = ${JSON.stringify(datosGrafico)};
+                const ctx = document.getElementById('pdfChart');
+                if (ctx && data.length > 0) {
+                    Chart.register(ChartDataLabels);
+                    new Chart(ctx.getContext('2d'), {
+                        type: 'doughnut',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                data: data,
+                                backgroundColor: ['#3b82f6', '#f59e0b', '#a855f7', '#ef4444', '#22c55e', '#f97316', '#64748b'],
+                                borderWidth: 2, borderColor: '#ffffff'
+                            }]
+                        },
+                        options: {
+                            responsive: true, maintainAspectRatio: false, cutout: '55%', animation: false,
+                            plugins: {
+                                legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } },
+                                datalabels: { color: '#ffffff', font: { weight: 'bold', size: 12 }, formatter: (v) => v }
+                            }
+                        }
+                    });
+                }
+                
+                // Esperar 1 segundo para que Chart.js termine de pintar y luego abrir la ventana de imprimir
+                setTimeout(() => { window.print(); }, 1000);
+            });
+        <\/script>
+    </body>
+    </html>`;
+
+    // 6. ABRIR NUEVA PESTAÑA Y LANZAR IMPRESIÓN
+    const ventanaPDF = window.open('', '_blank');
+    ventanaPDF.document.write(htmlPlantilla);
+    ventanaPDF.document.close(); // Cierra el flujo para que el navegador sepa que terminó de escribir
+
+    // Restaurar botón principal
+    btn.innerHTML = originalText;
+    btn.disabled = false;
 });
