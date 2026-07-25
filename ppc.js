@@ -9,6 +9,7 @@
     let ppc_borradores = [];
     let ppc_celdaActiva = null; 
     let modoLecturaPPC = false; // 🟢 NUEVO: Controla si estamos viendo el JSON
+    let graficoCNC = null;
 
     // =========================================================
     // 1. INICIALIZACIÓN (Se llama al cambiar de pestaña)
@@ -144,6 +145,7 @@
                     if (vInfo && vInfo.rol) rolPlanBase = String(vInfo.rol).trim().toUpperCase();
 
                     renderizarTablaPPC("LECTURA_JSON", rolPlanBase);
+                    renderizarResumenCNC();
                 } else { throw new Error(resJSON.message); }
             } catch(e) {
                 alert("Error leyendo el archivo histórico: " + e.message);
@@ -212,6 +214,7 @@
             }
 
             renderizarTablaPPC(rolEvaluar, rolVersionBase);
+            renderizarResumenCNC();
         } catch (e) { alert("Error al cargar datos PPC: " + e.message); } 
         finally { btnCargar.innerHTML = `🔄 <span class="hidden sm:inline ml-1">Cargar Datos</span>`; btnCargar.disabled = false; }
     });
@@ -326,8 +329,170 @@
         else lblPct.className = "px-2 py-2 text-center bg-slate-900 text-red-500 border-l border-slate-600 text-lg font-black";
     }
 
+    function renderizarResumenCNC() {
+        const contenedorResumen = document.getElementById('contenedorResumenCNC');
+        const areaDatos = document.getElementById('areaDatosCNC');
+        const estadoVacio = document.getElementById('estadoVacioCNC');
+        const tbodyDetalle = document.getElementById('tbodyDetalleCNC');
+
+        if (!contenedorResumen) return;
+
+        // 1. Mostrar el contenedor general si hay datos en la tabla (o si ppc_actividades tiene datos)
+        if (!ppc_actividades || ppc_actividades.length === 0) {
+            contenedorResumen.classList.add('hidden');
+            return;
+        }
+        contenedorResumen.classList.remove('hidden');
+        contenedorResumen.classList.add('flex'); // Add flex as it's flex-col
+
+        // 2. Validar estado vacío de borradores
+        if (!ppc_borradores || ppc_borradores.length === 0) {
+            areaDatos.classList.add('hidden');
+            estadoVacio.classList.remove('hidden');
+            estadoVacio.classList.add('flex');
+            return;
+        } else {
+            areaDatos.classList.remove('hidden');
+            estadoVacio.classList.add('hidden');
+            estadoVacio.classList.remove('flex');
+        }
+
+        // 3. Procesar datos (Agrupación)
+        const gruposCNC = {};
+        
+        ppc_borradores.forEach(borrador => {
+            // Encontrar descripción CNC
+            const cnc = ppc_catalogoCNC.find(c => c.id === borrador.idCNC);
+            const descCNC = cnc ? (cnc.descripcion || borrador.idCNC) : (borrador.idCNC || "SIN CAUSA");
+
+            // Encontrar Actividad
+            const act = ppc_actividades.find(a => a.id === borrador.idActividad);
+            const descActividad = act ? `[${act.indice}] ${act.descripcion}` : "Actividad desconocida";
+            
+            // Obtener sector cruzando con programacion
+            let sector = "";
+            if (ppc_programacion && typeof normFecha === 'function') {
+                const prog = ppc_programacion.find(p => p.idActividad === borrador.idActividad && normFecha(p.fecha) === borrador.fecha);
+                if (prog) sector = prog.sector;
+            }
+
+            // Día formateado
+            let diaNombre = "";
+            let diaIdx = ppc_fechasSemana.indexOf(borrador.fecha);
+            if (diaIdx !== -1) {
+                const diasCortos = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+                diaNombre = diasCortos[diaIdx] + " " + borrador.fecha.substring(0,2);
+            } else {
+                diaNombre = borrador.fecha;
+            }
+
+            const diaSector = sector ? `${diaNombre}<br><span class="font-bold">${sector}</span>` : diaNombre;
+
+            if (!gruposCNC[descCNC]) {
+                gruposCNC[descCNC] = {
+                    idCNC: borrador.idCNC,
+                    nombre: descCNC,
+                    incidencias: []
+                };
+            }
+
+            gruposCNC[descCNC].incidencias.push({
+                actividad: descActividad,
+                diaSector: diaSector,
+                observacion: borrador.observacion || ""
+            });
+        });
+
+        // 4. Inyectar Tabla
+        tbodyDetalle.innerHTML = '';
+        const labelsGrafico = [];
+        const datosGrafico = [];
+        const coloresFondo = [];
+
+        // Paleta de colores para Chart.js
+        const paleta = ['#3b82f6', '#eab308', '#a855f7', '#ef4444', '#22c55e', '#f97316', '#64748b', '#ec4899', '#14b8a6'];
+        let colorIndex = 0;
+
+        Object.values(gruposCNC).forEach(grupo => {
+            labelsGrafico.push(grupo.nombre);
+            datosGrafico.push(grupo.incidencias.length);
+            coloresFondo.push(paleta[colorIndex % paleta.length]);
+            colorIndex++;
+
+            // Fila cabecera del grupo
+            tbodyDetalle.innerHTML += `
+                <tr class="bg-gray-50 border-b border-gray-200">
+                    <td colspan="3" class="px-4 py-2 font-bold text-gray-700 uppercase">
+                        <span class="mr-1">📦</span> ${grupo.nombre} 
+                        <span class="ml-2 bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5 rounded-full">${grupo.incidencias.length} incidencias</span>
+                    </td>
+                </tr>
+            `;
+
+            grupo.incidencias.forEach(inc => {
+                const obsHTML = inc.observacion ? `"${inc.observacion}"` : `<span class="text-gray-400">Sin observación</span>`;
+                tbodyDetalle.innerHTML += `
+                    <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                        <td class="px-4 py-2 text-gray-600 font-medium">${inc.actividad}</td>
+                        <td class="px-4 py-2 text-center text-gray-500">${inc.diaSector}</td>
+                        <td class="px-4 py-2 text-gray-500 italic">${obsHTML}</td>
+                    </tr>
+                `;
+            });
+        });
+
+        // 5. Dibujar Gráfico
+        if (graficoCNC !== null) {
+            graficoCNC.destroy();
+        }
+
+        const canvas = document.getElementById('cncChart');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        
+        // Ensure ChartDataLabels is registered if available globally
+        if (typeof ChartDataLabels !== 'undefined') {
+            Chart.register(ChartDataLabels);
+        }
+
+        graficoCNC = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labelsGrafico,
+                datasets: [{
+                    data: datosGrafico,
+                    backgroundColor: coloresFondo,
+                    borderWidth: 2,
+                    borderColor: '#ffffff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '60%',
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            boxWidth: 12,
+                            font: { size: 10 }
+                        }
+                    },
+                    datalabels: {
+                        color: '#ffffff',
+                        font: { weight: 'bold', size: 12 },
+                        formatter: (value) => {
+                            return value;
+                        }
+                    }
+                }
+            }
+        });
+    }
+
     // =========================================================
     // 4. INTERACCIÓN DE ACHURADO (TOGGLE Y MODAL)
+
     // =========================================================
     function inicializarClicsPPC() {
         if (modoLecturaPPC) return; // 🟢 CANDADO: Si es el JSON Histórico, no se puede hacer clic en nada.
@@ -430,6 +595,10 @@
             const res = await API.guardarBorradorPPC(AppState.currentSheetsId, versionBase, nomSemanaReal, rolGuardar, datosGuardar);
             if (res.success) {
                 btn.innerHTML = `✅ <span class="hidden sm:inline ml-1">¡Guardado!</span>`;
+                
+                ppc_borradores = [...datosGuardar];
+                renderizarResumenCNC();
+
                 setTimeout(() => {
                     btn.innerHTML = `💾 <span class="hidden sm:inline ml-1">Guardar Borrador</span>`;
                     btn.disabled = false;

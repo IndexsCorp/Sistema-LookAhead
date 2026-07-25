@@ -26,6 +26,16 @@
             text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
         }
     </style>
+    <!-- Chart.js para el gráfico de CNC -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <style>
+        /* Estilo para que la barra de scroll de la tabla CNC se vea limpia */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
 </head>
 <body class="bg-slate-200 text-slate-800 font-sans min-h-screen flex items-center justify-center p-4 transition-all duration-500">
     
@@ -227,7 +237,50 @@
                             </tr>
                         </thead>
                         <tbody id="tbodyLookAheadSup"></tbody>
-                    </table>
+                </table>
+            </div>
+
+            <!-- SECCIÓN INFERIOR: RESUMEN DE CNC -->
+            <div id="contenedorResumenCNC" class="hidden w-full flex-col border-t-4 border-slate-300 mt-4 bg-white">
+                <div class="bg-slate-800 p-3 border-b border-slate-700">
+                    <h2 class="text-sm font-bold text-white flex items-center tracking-widest uppercase">
+                        <span class="mr-2">📊</span> Análisis de Causas de No Cumplimiento (CNC)
+                    </h2>
+                </div>
+
+                <!-- Contenedor Dividido (Split View) -->
+                <div class="p-5 grid grid-cols-1 lg:grid-cols-12 gap-6 h-[380px]" id="areaDatosCNC">
+                    
+                    <!-- COLUMNA IZQUIERDA: GRÁFICO CIRCULAR -->
+                    <div class="lg:col-span-4 bg-slate-50 border border-gray-200 rounded-lg p-4 shadow-inner flex flex-col h-full">
+                        <h3 class="text-xs font-bold text-gray-600 uppercase mb-2 text-center">Distribución de Causas</h3>
+                        <div class="flex-grow flex items-center justify-center relative w-full h-full pb-2">
+                            <canvas id="cncChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- COLUMNA DERECHA: TABLA DETALLADA CON SCROLL -->
+                    <div class="lg:col-span-8 overflow-y-auto custom-scrollbar border border-gray-200 rounded-lg shadow-inner h-full relative">
+                        <table class="w-full text-xs text-left text-gray-700 border-collapse whitespace-nowrap">
+                            <thead class="text-[10px] uppercase bg-slate-200 text-slate-600 sticky top-0 z-10 shadow-sm">
+                                <tr>
+                                    <th class="px-4 py-3 border-b border-slate-300 w-1/3">Actividad Afectada</th>
+                                    <th class="px-4 py-3 border-b border-slate-300 text-center w-24">Día / Sector</th>
+                                    <th class="px-4 py-3 border-b border-slate-300 w-auto">Observación de Campo</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyDetalleCNC">
+                                <!-- JS Inyectará las filas agrupadas aquí -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Estado Vacío (100% PPC) -->
+                <div id="estadoVacioCNC" class="hidden p-10 flex flex-col items-center justify-center text-center">
+                    <span class="text-4xl mb-3">🎉</span>
+                    <h3 class="text-lg font-bold text-green-600">¡Excelente trabajo!</h3>
+                    <p class="text-sm text-gray-500">No hay Causas de No Cumplimiento registradas para esta semana.</p>
                 </div>
             </div>
         </main>
