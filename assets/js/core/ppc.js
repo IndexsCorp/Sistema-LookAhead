@@ -816,6 +816,7 @@ document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
     let mostrarCNC = sumProg === sumCump ? 'display: none;' : 'display: block;';
 
     // 5. CREAR CONTENEDOR INVISIBLE PARA LA PLANTILLA (Ancho A4 a 96dpi)
+    // 🟢 NOTA: Al no usar window.open, el usuario no verá parpadeos ni pestañas nuevas.
     const printContainer = document.createElement('div');
     printContainer.style.position = 'absolute';
     printContainer.style.left = '-9999px';
@@ -915,7 +916,7 @@ document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
         });
     }
 
-    // 7. CONVERTIR A PDF Y DESCARGAR DIRECTAMENTE
+    // 7. CONVERTIR A PDF Y DESCARGAR AUTOMÁTICAMENTE (SIN VENTANAS NUEVAS)
     setTimeout(() => {
         const opt = {
             margin:       [10, 10, 15, 10], // top, left, bottom, right
@@ -923,14 +924,15 @@ document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
             image:        { type: 'jpeg', quality: 1 },
             html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
             jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' },
-            pagebreak:    { mode: 'css', avoid: 'tr, .evitar-quiebre' } // Evita que se partan las filas
+            pagebreak:    { mode: 'css', avoid: 'tr, .evitar-quiebre' }
         };
 
+        // Esto lanza directamente la ventana de "Guardar Archivo Como..." del sistema operativo
         html2pdf().set(opt).from(printContainer).save().then(() => {
             // Limpieza
             document.body.removeChild(printContainer);
             btn.innerHTML = originalText;
             btn.disabled = false;
         });
-    }, 500); // Darle medio segundo al gráfico para dibujarse
+    }, 500); // Darle medio segundo al gráfico para dibujarse antes de capturar
 });
