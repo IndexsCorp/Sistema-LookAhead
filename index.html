@@ -99,7 +99,7 @@
         <main id="mainLookAhead" class="bg-white rounded-xl shadow-sm border border-gray-100 flex-grow flex flex-col overflow-hidden mt-4">
             <div class="p-3 border-b border-gray-200 flex justify-between items-center bg-slate-50 flex-wrap gap-2">
                 <div class="flex items-center space-x-2 sm:space-x-4">
-                    <h2 class="text-sm font-bold text-gray-800 hidden sm:block">Programación Diaria</h2>
+                    <h2 class="text-sm font-bold text-gray-800 hidden sm:block">Programación Look-Ahead</h2>
                     <h2 class="text-sm font-bold text-gray-800 sm:hidden">Look-Ahead</h2>
                     
                     <div id="cajaVersiones" class="flex items-center bg-white border border-gray-200 px-2 py-1 rounded-md shadow-sm">
@@ -122,7 +122,7 @@
                 <div class="space-x-1 sm:space-x-2 flex items-center relative">
                     <!-- BADGE INFORMATIVO -->
                     <span id="badgeVentana" class="hidden sm:inline-flex bg-green-100 text-green-800 text-[10px] font-bold px-2 py-1 rounded-md border border-green-200 uppercase shadow-sm">
-                        🟢 Rango Activo: Semanas -- al --
+                        🟢 Periodo: Semanas -- al --
                     </span>
 
                     <button id="btnGuardarOrden" class="hidden bg-green-600 text-white px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-green-700 transition shadow-sm items-center animate-pulse">
@@ -136,24 +136,24 @@
                     <!-- DROPDOWN OPCIONES -->
                     <div class="relative group z-50">
                         <button class="bg-slate-700 text-white px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-slate-800 transition shadow-sm flex items-center">
-                            ⚙️ <span class="hidden sm:inline ml-1">Opciones ▾</span>
+                            ⚙️ <span class="hidden sm:inline ml-1">Herramientas ▾</span>
                         </button>
                         <div class="absolute right-0 mt-1 w-56 bg-white border border-gray-200 rounded-md shadow-lg hidden group-hover:block group-focus-within:block flex flex-col py-1">
                             
                             <!-- SELECTOR DE ROL (Solo ADMIN) -->
                             <div class="px-4 py-2 border-b border-gray-100">
-                                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Vista Simbólica</label>
+                                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Rol Desempeñado</label>
                                 <select id="cmbRolSimulado" class="w-full bg-purple-100 text-purple-800 border border-purple-300 px-2 py-1 rounded text-[10px] font-bold outline-none cursor-pointer shadow-sm uppercase">
-                                    <option value="RESIDENTE">Vista: RESIDENTE</option>
-                                    <option value="SUPERVISION">Vista: SUPERVISIÓN</option>
+                                    <option value="RESIDENTE">Rol: RESIDENTE</option>
+                                    <option value="SUPERVISION">Rol: SUPERVISIÓN</option>
                                 </select>
                             </div>
                             
                             <button id="btnToggleComparativo" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
-                                ⚖️ <span class="ml-2">Comparar Roles</span>
+                                ⚖️ <span class="ml-2">Comparar Versiones</span>
                             </button>
                             <button onclick="abrirModalConfigSemanas()" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
-                                🗓️ <span class="ml-2">Configurar Semanas</span>
+                                🗓️ <span class="ml-2">Establecer Semana</span>
                             </button>
                             <button id="btnRegistrarVersion" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
                                 🔒 <span class="ml-2">Registrar Versión</span>
@@ -268,8 +268,8 @@
                 <div class="space-x-1 sm:space-x-2 flex items-center">
                     <!-- NUEVO: SELECTOR DE ROL PPC (Solo ADMIN) -->
                     <select id="cmbRolSimuladoPPC" class="hidden ml-2 bg-purple-100 text-purple-800 border border-purple-300 px-2 py-1 rounded text-[10px] font-bold outline-none cursor-pointer shadow-sm uppercase mr-2">
-                        <option value="RESIDENTE">Vista: RESIDENTE</option>
-                        <option value="SUPERVISION">Vista: SUPERVISIÓN</option>
+                        <option value="RESIDENTE">Rol: RESIDENTE</option>
+                        <option value="SUPERVISION">Rol: SUPERVISIÓN</option>
                     </select>
 
                     <button id="btnCargarPPC" class="bg-blue-600 text-white px-2 sm:px-3 py-1.5 rounded text-xs font-bold hover:bg-blue-700 transition shadow-sm flex items-center mr-2">
