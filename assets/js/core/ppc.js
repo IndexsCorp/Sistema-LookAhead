@@ -816,12 +816,13 @@ document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
     let mostrarCNC = sumProg === sumCump ? 'display: none;' : 'display: block;';
 
     // 5. CREAR CONTENEDOR INVISIBLE PARA LA PLANTILLA (Ancho A4 a 96dpi)
-    // 🟢 NOTA: Al no usar window.open, el usuario no verá parpadeos ni pestañas nuevas.
     const printContainer = document.createElement('div');
+    // 🟢 EL TRUCO: Posición 0,0 pero oculto detrás de la app
     printContainer.style.position = 'absolute';
-    printContainer.style.left = '-9999px';
     printContainer.style.top = '0';
+    printContainer.style.left = '0';
     printContainer.style.width = '1122px'; // Equivalente al ancho A4 Horizontal
+    printContainer.style.zIndex = '-9999'; // Oculto detrás del fondo
     printContainer.style.backgroundColor = '#ffffff';
     printContainer.style.padding = '20px';
     printContainer.style.fontFamily = 'Arial, sans-serif';
@@ -916,23 +917,27 @@ document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
         });
     }
 
-    // 7. CONVERTIR A PDF Y DESCARGAR AUTOMÁTICAMENTE (SIN VENTANAS NUEVAS)
+    // 7. CONVERTIR A PDF Y DESCARGAR
     setTimeout(() => {
+        // 🟢 EL TRUCO 2: Mover la vista arriba temporalmente para que no salga blanco
+        const oldScroll = window.scrollY;
+        window.scrollTo(0, 0);
+
         const opt = {
-            margin:       [10, 10, 15, 10], // top, left, bottom, right
+            margin:       [10, 10, 15, 10],
             filename:     `Reporte_PPC_${semanaNombre.replace(/ /g, "_")}.pdf`,
             image:        { type: 'jpeg', quality: 1 },
-            html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
+            html2canvas:  { scale: 2, useCORS: true, letterRendering: true, scrollY: 0 },
             jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' },
             pagebreak:    { mode: 'css', avoid: 'tr, .evitar-quiebre' }
         };
 
-        // Esto lanza directamente la ventana de "Guardar Archivo Como..." del sistema operativo
         html2pdf().set(opt).from(printContainer).save().then(() => {
             // Limpieza
             document.body.removeChild(printContainer);
+            window.scrollTo(0, oldScroll); // Regresamos al usuario a donde estaba
             btn.innerHTML = originalText;
             btn.disabled = false;
         });
-    }, 500); // Darle medio segundo al gráfico para dibujarse antes de capturar
+    }, 500); 
 });
