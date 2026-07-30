@@ -68,6 +68,11 @@
 
                 AppState.listaVersionesGlobal = respuesta.versions || respuesta.versiones || [];
                 llenarDropdownsVersiones();
+
+                // 🟢 AQUÍ EJECUTAMOS LA NOTA: 
+                // Llenamos el combobox con los contratistas antes de pintar la tabla
+                actualizarOpcionesFiltroSC();
+
                 renderizarAmbasTablas();
 
             } else {
@@ -140,6 +145,38 @@
         AppState.memoriaProgramacion = nuevaMemoria;
     }
 
+    // =========================================================
+    // LÓGICA DEL FILTRO VISUAL: SC / RUBRO
+    // =========================================================
+    function actualizarOpcionesFiltroSC() {
+        const cmb = document.getElementById('cmbFiltroSCLook');
+        if (!cmb) return;
+        
+        let valorActual = cmb.value;
+        let setSC = new Set();
+        
+        // Extraer todos los SC / Rubros únicos de la memoria viva
+        AppState.memoriaCache.forEach(a => {
+            if (a.estado !== 'ELIMINADO' && a.scRubro && a.scRubro.trim() !== '') {
+                setSC.add(a.scRubro.trim().toUpperCase());
+            }
+        });
+        
+        let html = '<option value="">Filtros (Todos)</option>';
+        [...setSC].sort().forEach(sc => {
+            html += `<option value="${sc}">${sc}</option>`;
+        });
+        
+        cmb.innerHTML = html;
+        if ([...setSC].includes(valorActual)) cmb.value = valorActual;
+    }
+
+    // Evento que repinta la tabla cuando el usuario elige un filtro
+    document.getElementById('cmbFiltroSCLook').addEventListener('change', () => {
+        renderizarAmbasTablas();
+    });
+    
+    
     // =========================================================
     // 2. RENDERIZADO UNIFICADO Y CONTROL DE VERSIONES
     // =========================================================
@@ -578,9 +615,31 @@ document.getElementById('btnIrAHoy').addEventListener('click', () => {
                 });
             }
 
+            // 🟢 NUEVO: LÓGICA DE FILTRADO VISUAL POR SC/RUBRO
+            let filtroSC = document.getElementById('cmbFiltroSCLook') ? document.getElementById('cmbFiltroSCLook').value : "";
+            let dataActFiltrada = dataAct;
+
+            if (filtroSC !== "") {
+                let encabezadosValidos = new Set();
+                
+                // 1. Encontrar todos los padres de las actividades que cumplen el filtro
+                dataAct.forEach(a => {
+                    if (!a.id.startsWith('ENC') && a.tipo !== 'ENCABEZADO' && (a.scRubro || "").trim().toUpperCase() === filtroSC) {
+                        if (a.idPadre) encabezadosValidos.add(a.idPadre);
+                    }
+                });
+                
+                // 2. Filtrar la lista final (conservando la actividad que coincide + su encabezado)
+                dataActFiltrada = dataAct.filter(a => {
+                    if (a.id.startsWith('ENC') || a.tipo === 'ENCABEZADO') return encabezadosValidos.has(a.id);
+                    return (a.scRubro || "").trim().toUpperCase() === filtroSC;
+                });
+            }
+
             let html = '';
-            if (dataAct.length === 0) {
-                html = `<tr><td colspan="12" class="text-center py-10 text-slate-500">Sin datos.</td></tr>`;
+            // 🟢 CORRECCIÓN: Usar dataActFiltrada aquí
+            if (dataActFiltrada.length === 0) {
+                html = `<tr><td colspan="12" class="text-center py-10 text-slate-500">Sin datos para este filtro.</td></tr>`;
             } else {
                 // 🟢 CANDADOS DE EDICIÓN Y BLOQUEO VISUAL
                 let puedeEditarEstaVista = esTabla1 && !esLectura && AppState.puedeEditarSectores;
@@ -590,7 +649,8 @@ document.getElementById('btnIrAHoy').addEventListener('click', () => {
                 let spanDragEnc = ocultarEdicion ? '' : `<span class="cursor-move text-yellow-700 mr-2 hover:text-yellow-900 px-1 drag-handle">☰</span>`;
                 let chkBox = ocultarEdicion ? '' : `<input type="checkbox" class="row-chk cursor-pointer w-4 h-4 rounded">`;
 
-                dataAct.forEach(act => {
+                // 🟢 CORRECCIÓN: Usar dataActFiltrada aquí también!
+                dataActFiltrada.forEach(act => {
                     let btnEdicionEnc = ocultarEdicion ? '' : `<button onclick="abrirModalEdicion('${act.id}')" class="opacity-0 group-hover:opacity-100 text-slate-700 hover:bg-yellow-400 rounded px-1 transition-all">✏️</button><button onclick="eliminarDeCache('${act.id}')" class="opacity-0 group-hover:opacity-100 text-red-600 hover:bg-red-200 rounded px-1 transition-all ml-1">🗑️</button>`;
                     let btnEdicionAct = ocultarEdicion ? '' : `<button onclick="abrirModalEdicion('${act.id}')" class="opacity-0 group-hover:opacity-100 text-blue-500 hover:bg-blue-50 rounded px-1 transition-all ml-2">✏️</button><button onclick="eliminarDeCache('${act.id}')" class="opacity-0 group-hover:opacity-100 text-red-500 hover:bg-red-50 rounded px-1 transition-all ml-1">🗑️</button>`;
 
@@ -1303,3 +1363,185 @@ document.getElementById('btnIrAHoy').addEventListener('click', () => {
             btn.innerText = "Guardar y Recalcular"; btn.disabled = false;
         }
     });
+
+    // =========================================================
+// 8. EXPORTAR LOOK-AHEAD A PDF (POR BLOQUES SEMANALES)
+// =========================================================
+document.getElementById('btnExportarPDFLA').addEventListener('click', () => {
+    // 1. VALIDACIÓN
+    if (!AppState.memoriaCache || AppState.memoriaCache.length === 0) {
+        alert("⚠️ No hay datos en el Look-Ahead para exportar.");
+        return;
+    }
+
+    const btn = document.getElementById('btnExportarPDFLA');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = `⏳ <span class="hidden sm:inline ml-1">Abriendo...</span>`;
+    btn.disabled = true;
+
+    // 2. RECOLECTAR METADATOS
+    const nombreProyecto = document.getElementById('lblNombreProyecto').innerText;
+    const cmb = document.getElementById('cmbHistorialVersiones');
+    const valCmb = cmb.value;
+    const textoOpcion = cmb.options[cmb.selectedIndex].text;
+    
+    let modoLectura = valCmb !== "ACTUAL";
+    let rolEvaluado = AppState.rolRenderizadoActual;
+    let fechaReporte = "";
+    let nombreVersion = valCmb;
+
+    if (modoLectura) {
+        let matchFecha = textoOpcion.match(/•\s*(.*?)\s*\(/);
+        fechaReporte = matchFecha ? matchFecha[1].trim() : "Histórico";
+        let matchRol = textoOpcion.match(/\)\s*-\s*(.*)/);
+        if (matchRol) rolEvaluado = matchRol[1].trim();
+    } else {
+        const d = new Date();
+        fechaReporte = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    }
+
+    // 3. OBTENER EL BLOQUE DE 4 SEMANAS
+    const bloque = listadoSemanasGlobal.slice(indiceSemanaActual, indiceSemanaActual + 4);
+    if (bloque.length === 0) {
+        alert("No hay un rango de semanas configurado.");
+        btn.innerHTML = originalText; btn.disabled = false; return;
+    }
+
+    let dataAct = modoLectura ? (AppState.memoriaHistorial1.actividades || AppState.memoriaHistorial1) : AppState.memoriaCache.filter(a => a.estado !== 'ELIMINADO');
+    let dataProg = modoLectura ? (AppState.memoriaHistorial1.programacion || []) : AppState.memoriaProgramacion;
+    
+    dataAct.sort((a, b) => String(a.indice).localeCompare(String(b.indice), undefined, { numeric: true }));
+
+    // 4. BUCLE DE GENERACIÓN DE SEMANAS
+    const diasNombres = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+    let paginasHTML = '';
+
+    bloque.forEach((semInfo, indexSemana) => {
+        let partes = semInfo.fecha.split('-');
+        let dLunes = new Date(partes[0], parseInt(partes[1]) - 1, partes[2]);
+        let fechasSemanaActual = [];
+        let htmlCabeceraDias = '';
+        
+        for (let i = 0; i < 7; i++) {
+            let f = new Date(dLunes);
+            f.setDate(dLunes.getDate() + i);
+            let fStr = `${String(f.getDate()).padStart(2, '0')}/${String(f.getMonth() + 1).padStart(2, '0')}/${f.getFullYear()}`;
+            fechasSemanaActual.push(fStr);
+            
+            htmlCabeceraDias += `<th style="width: 7%; border: 1px solid #cbd5e1; background-color: #f1f5f9; color: #334155; padding: 8px 4px; font-size: 10px;">${fStr.substring(0, 5)}<br><span style="font-weight: normal; font-size: 9px;">${diasNombres[i]}</span></th>`;
+        }
+
+        let htmlFilasActividades = '';
+        dataAct.forEach(act => {
+            if (act.id.startsWith('ENC') || act.tipo === 'ENCABEZADO') {
+                htmlFilasActividades += `
+                    <tr class="evitar-quiebre" style="background-color: #fef08a; color: #854d0e; font-weight: 900; font-size: 11px;">
+                        <td style="width: 4%; border: 1px solid #cbd5e1; padding: 6px 4px; text-align: center;">${act.indice}</td>
+                        <td style="width: 32%; border: 1px solid #cbd5e1; text-align: left; padding-left: 8px;">${act.descripcion}</td>
+                        <td style="width: 5%; border: 1px solid #cbd5e1; text-align: center;"></td>
+                        <td style="width: 10%; border: 1px solid #cbd5e1; text-align: center;"></td>
+                        <td colspan="7" style="border: 1px solid #cbd5e1; background-color: #fef08a;"></td>
+                    </tr>`;
+            } else {
+                let celdasHTML = '';
+                let tieneDatosSemana = false;
+
+                fechasSemanaActual.forEach(fStr => {
+                    let p = dataProg.find(x => x.idActividad === act.id && normFecha(x.fecha) === fStr && String(x.rol || "RESIDENTE").trim().toUpperCase() === String(rolEvaluado).toUpperCase());
+                    
+                    if (p && (p.sector || p.color)) {
+                        tieneDatosSemana = true;
+                        let textColor = obtenerColorTextoContraste(p.color);
+                        celdasHTML += `<td style="border: 1px solid #cbd5e1; padding: 6px 4px; text-align: center; color: ${textColor}; font-weight: bold; background-color: ${p.color};">${p.sector || ''}</td>`;
+                    } else {
+                        celdasHTML += `<td style="border: 1px solid #cbd5e1; background-color: #f8fafc;"></td>`;
+                    }
+                });
+                
+                // Opcional: Si quieres que se impriman solo las actividades que tienen datos en esta semana,
+                // puedes descomentar la siguiente línea:
+                // if(!tieneDatosSemana) return; 
+
+                htmlFilasActividades += `
+                    <tr class="evitar-quiebre">
+                        <td style="border: 1px solid #cbd5e1; padding: 6px 4px; text-align: center; font-weight: bold; color: #64748b;">${act.indice}</td>
+                        <td style="border: 1px solid #cbd5e1; padding: 6px 4px; text-align: left; padding-left: 8px; font-weight: bold; color: #1e293b;">${act.descripcion}</td>
+                        <td style="border: 1px solid #cbd5e1; padding: 6px 4px; text-align: center; color: #64748b; font-size: 9px;">${act.unidad || ''}</td>
+                        <td style="border: 1px solid #cbd5e1; padding: 6px 4px; text-align: center; color: #64748b; font-size: 9px;">${act.scRubro || ''}</td>
+                        ${celdasHTML}
+                    </tr>`;
+            }
+        });
+
+        let pageBreak = (indexSemana < bloque.length - 1) ? '<div class="page-break"></div>' : '';
+
+        // 5. ENSAMBLAR LA TABLA CON EL TÍTULO DENTRO DEL THEAD
+        // ¡Esto hace que el título se repita en cada hoja si la semana ocupa más de 1 página!
+        paginasHTML += `
+        <div class="hoja">
+            <table style="width: 100%; border-collapse: collapse; text-align: center; font-size: 10px;">
+                <thead style="display: table-header-group;">
+                    <tr>
+                        <td colspan="11" style="border: none; padding: 0; background: white; text-align: left;">
+                            <div style="display: flex; border-bottom: 3px solid #0f172a; padding-bottom: 12px; margin-bottom: 15px; align-items: flex-end;">
+                                <div style="flex-grow: 1;">
+                                    <h1 style="margin: 0; font-size: 22px; text-transform: uppercase; color: #0f172a; letter-spacing: 1px;">Look-Ahead (Semana ${semInfo.semana})</h1>
+                                    <h2 style="margin: 5px 0 0 0; font-size: 14px; color: #2563eb;">Proyecto: ${nombreProyecto}</h2>
+                                </div>
+                                <div style="text-align: right; font-size: 11px; line-height: 1.5; color: #64748b;">
+                                    <p style="margin:2px 0;"><span style="font-weight: bold; color: #0f172a;">Fecha Reporte:</span> ${fechaReporte}</p>
+                                    <p style="margin:2px 0;"><span style="font-weight: bold; color: #0f172a;">Versión Base:</span> ${nombreVersion}</p>
+                                    <p style="margin:2px 0;"><span style="font-weight: bold; color: #0f172a;">Rol Evaluado:</span> ${rolEvaluado}</p>
+                                    <p style="margin:2px 0;"><span style="font-weight: bold; color: #0f172a;">Rango Total:</span> Semanas ${bloque[0].semana} al ${bloque[bloque.length-1].semana}</p>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th style="width: 4%; background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 8px 4px; font-weight: bold;">ÍNDICE</th>
+                        <th style="width: 32%; background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 8px 4px; font-weight: bold; text-align:left; padding-left:8px;">DESCRIPCIÓN DE LA ACTIVIDAD</th>
+                        <th style="width: 5%; background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 8px 4px; font-weight: bold;">UND</th>
+                        <th style="width: 10%; background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 8px 4px; font-weight: bold;">SC / RUBRO</th>
+                        ${htmlCabeceraDias}
+                    </tr>
+                </thead>
+                <tbody>
+                    ${htmlFilasActividades}
+                </tbody>
+            </table>
+        </div>
+        ${pageBreak}
+        `;
+    });
+
+    // 6. INYECTAR EN PLANTILLA FINAL
+    const htmlPlantilla = `
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <title>Look-Ahead Semanas ${bloque[0].semana}-${bloque[bloque.length-1].semana}</title>
+        <style>
+            @page { size: A4 landscape; margin: 10mm 12mm; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; box-sizing: border-box; }
+            body { font-family: 'Arial', sans-serif; margin: 0; padding: 0; background-color: white; color: #333; font-size: 11px; }
+            .evitar-quiebre { page-break-inside: avoid; break-inside: avoid; }
+            .page-break { page-break-after: always; }
+            .hoja { width: 100%; }
+        </style>
+    </head>
+    <body>
+        ${paginasHTML}
+        <script>
+            setTimeout(() => { window.print(); }, 800);
+        </script>
+    </body>
+    </html>`;
+
+    const ventanaPDF = window.open('', '_blank');
+    ventanaPDF.document.write(htmlPlantilla);
+    ventanaPDF.document.close(); 
+
+    btn.innerHTML = originalText;
+    btn.disabled = false;
+});

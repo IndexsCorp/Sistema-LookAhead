@@ -127,14 +127,33 @@ document.getElementById('cmbHistorialPPC').addEventListener('change', async (e) 
                 const data = resJSON.data;
                 ppc_actividades = data.actividades || [];
                 ppc_programacion = data.programacion || [];
-                ppc_borradores = data.resultadosPPC || []; // En el JSON, estos son los achurados guardados
+                ppc_borradores = data.resultadosPPC || []; 
+
+                // 🟢 NUEVO: CAPTURAR METADATOS PARA EL PDF
+                const textoOp = opcion.text; // Ej: "v1.0 • 20/07 (SUPERVISION) - Semana 39"
+                let rolGuardado = "DESCONOCIDO";
+                let fechaGuardada = "DESCONOCIDA";
+                
+                // Extraer fecha y rol usando los símbolos de separación
+                let matchInfo = textoOp.match(/•\s*(.*?)\s*\((.*?)\)/);
+                if (matchInfo) {
+                    fechaGuardada = matchInfo[1].trim();
+                    rolGuardado = matchInfo[2].trim();
+                }
+
+                window.ppc_metaPDF = {
+                    semanaEvaluada: data.semanaEvaluada, 
+                    baseEvaluada: data.baseEvaluada,
+                    rolEvaluado: rolGuardado,
+                    fechaReporte: fechaGuardada
+                };
 
                 // Reconstruimos las fechas basándonos en la Semana guardada en el JSON
                 let numSemana = data.semanaEvaluada.match(/\d+/);
                 let idxSemana = numSemana ? parseInt(numSemana[0]) : 1;
 
                 let semInicioObra = parseInt(AppState.configProyecto.semanaInicio) || 1;
-                let difSemana = idxSemana - semInicioObra; // Diferencia respecto a la semana 1
+                let difSemana = idxSemana - semInicioObra; 
 
                 let dLunes = new Date(AppState.configProyecto.fechaLunesBase + "T00:00:00");
                 dLunes.setDate(dLunes.getDate() + (difSemana * 7));
@@ -146,7 +165,6 @@ document.getElementById('cmbHistorialPPC').addEventListener('change', async (e) 
                     ppc_fechasSemana.push(`${String(f.getDate()).padStart(2, '0')}/${String(f.getMonth() + 1).padStart(2, '0')}/${f.getFullYear()}`);
                 }
 
-                // Determinar de quién era el plan base
                 let rolPlanBase = "RESIDENTE";
                 const vInfo = AppState.listaVersionesGlobal.find(v => v.numero === data.baseEvaluada);
                 if (vInfo && vInfo.rol) rolPlanBase = String(vInfo.rol).trim().toUpperCase();
@@ -698,16 +716,31 @@ document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
     btn.innerHTML = `⏳ <span class="hidden sm:inline ml-1">Abriendo...</span>`;
     btn.disabled = true;
 
-    // 2. RECOLECTAR DATOS
+    // 2. RECOLECTAR DATOS (INTELIGENCIA MODO LECTURA VS EDICIÓN)
     const nombreProyecto = document.getElementById('lblNombreProyecto').innerText;
-    const semanaSel = document.getElementById('cmbSemanaPPC');
-    const semanaNombre = semanaSel.options[semanaSel.selectedIndex].text;
-    const versionBase = document.getElementById('cmbVersionPPC').value || "Actual";
     
-    let rolEvaluado = AppState.rolGlobalReal;
-    if (AppState.rolGlobalReal === "ADMIN") {
-        const cmbRol = document.getElementById('cmbRolSimuladoPPC');
-        if (cmbRol) rolEvaluado = cmbRol.value;
+    let semanaNombre, versionBase, rolEvaluado, fechaReporte;
+
+    // Si estamos viendo el pasado, tomamos la memoria congelada
+    if (modoLecturaPPC && window.ppc_metaPDF) {
+        semanaNombre = window.ppc_metaPDF.semanaEvaluada;
+        versionBase = window.ppc_metaPDF.baseEvaluada;
+        rolEvaluado = window.ppc_metaPDF.rolEvaluado;
+        fechaReporte = window.ppc_metaPDF.fechaReporte;
+    } else {
+        // Si estamos editando hoy, tomamos los valores en vivo
+        const semanaSel = document.getElementById('cmbSemanaPPC');
+        semanaNombre = semanaSel.options[semanaSel.selectedIndex].text;
+        versionBase = document.getElementById('cmbVersionPPC').value || "Actual";
+        
+        rolEvaluado = AppState.rolGlobalReal;
+        if (AppState.rolGlobalReal === "ADMIN") {
+            const cmbRol = document.getElementById('cmbRolSimuladoPPC');
+            if (cmbRol) rolEvaluado = cmbRol.value;
+        }
+
+        const d = new Date();
+        fechaReporte = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
     }
 
     const versionInfo = AppState.listaVersionesGlobal.find(v => v.numero === versionBase);
@@ -781,7 +814,6 @@ document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
         const idCausa = borrador.idCNC;
         const cnc = ppc_catalogoCNC.find(c => c.id === idCausa);
         const descCNC = `${idCausa} - ${cnc ? cnc.descripcion : "CAUSA NO DEFINIDA"}`;
-
         const act = ppc_actividades.find(a => a.id === borrador.idActividad);
         const descActividad = act ? `[${act.indice}] ${act.descripcion}` : "Actividad desconocida";
 
@@ -793,11 +825,7 @@ document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
         let diaNombre = diaIdx !== -1 ? `${diasNombres[diaIdx]} ${borrador.fecha.substring(0, 2)}` : borrador.fecha;
 
         if (!gruposCNC[descCNC]) gruposCNC[descCNC] = { nombre: descCNC, incidencias: [] };
-        gruposCNC[descCNC].incidencias.push({
-            actividad: descActividad,
-            diaSector: `${diaNombre}<br><b>${sector}</b>`,
-            observacion: borrador.observacion || "Sin observación"
-        });
+        gruposCNC[descCNC].incidencias.push({ actividad: descActividad, diaSector: `${diaNombre}<br><b>${sector}</b>`, observacion: borrador.observacion || "Sin observación" });
     });
 
     Object.values(gruposCNC).forEach(grupo => {
@@ -830,7 +858,7 @@ document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
     <html lang="es">
     <head>
         <meta charset="UTF-8">
-        <title>Reporte PPC - ${semanaNombre}</title>
+        <title>Reporte PPC - ${semanaNombre} (${fechaReporte})</title>
         <script src="https://cdn.jsdelivr.net/npm/chart.js"><\/script>
         <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"><\/script>
         <style>
@@ -847,6 +875,7 @@ document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
                 <h2 style="margin: 5px 0 0 0; font-size: 14px; color: #2563eb;">Proyecto: ${nombreProyecto}</h2>
             </div>
             <div style="text-align: right; font-size: 11px; line-height: 1.5; color: #64748b;">
+                <p style="margin:2px 0;"><span style="font-weight: bold; color: #0f172a;">Fecha de Reporte:</span> ${fechaReporte}</p>
                 <p style="margin:2px 0;"><span style="font-weight: bold; color: #0f172a;">Semana Evaluada:</span> ${semanaNombre}</p>
                 <p style="margin:2px 0;"><span style="font-weight: bold; color: #0f172a;">Versión Base:</span> ${versionBase}</p>
                 <p style="margin:2px 0;"><span style="font-weight: bold; color: #0f172a;">Rol Evaluado:</span> ${rolEvaluado}</p>
@@ -903,7 +932,6 @@ document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
         </div>
         
         <script>
-            // Usamos window.onload en lugar de DOMContentLoaded para garantizar carga de librerías
             window.onload = function() {
                 const labels = ${JSON.stringify(labelsGrafico)};
                 const data = ${JSON.stringify(datosGrafico)};
@@ -930,8 +958,6 @@ document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
                         }
                     });
                 }
-                
-                // Esperar a que el gráfico termine de pintarse y lanzar impresión nativa
                 setTimeout(() => { window.print(); }, 800);
             };
         <\/script>
@@ -943,7 +969,6 @@ document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
     ventanaPDF.document.write(htmlPlantilla);
     ventanaPDF.document.close(); 
 
-    // Restaurar botón principal
     btn.innerHTML = originalText;
     btn.disabled = false;
 });
