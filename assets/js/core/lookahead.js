@@ -49,6 +49,8 @@
                 AppState.memoriaProgramacion = respuesta.programacion || [];
                 AppState.configProyecto = respuesta.configuracion || { fechaLunesBase: null, semanaInicio: 1 };
 
+                await inicializarMotorTiempo();
+
                 const sessionData = JSON.parse(sessionStorage.getItem('usuarioActivo'));
                 if (sessionData) AppState.rolGlobalReal = sessionData.rol;
 
@@ -205,27 +207,7 @@
         return s;
     };
 
-    document.getElementById('cmbHistorialVersiones').addEventListener('change', async (e) => {
-        const val = e.target.value;
-        const btnGuardar = document.getElementById('btnGuardarOrden');
-
-        if (val === "ACTUAL") {
-            AppState.memoriaHistorial1 = null;
-            if (btnGuardar && AppState.puedeEditarEstructura) { btnGuardar.classList.remove('hidden'); btnGuardar.classList.add('flex'); }
-        } else {
-            document.getElementById('tbodyLookAhead').innerHTML = `<tr><td colspan="12" class="text-center py-10 text-indigo-500 animate-pulse">Viajando a la ${val}...</td></tr>`;
-            if (btnGuardar) { btnGuardar.classList.add('hidden'); btnGuardar.classList.remove('flex'); }
-            try {
-                const res = await API.obtenerVersionAntigua(AppState.currentSheetsId, val);
-                if (res.success) AppState.memoriaHistorial1 = res.actividades; else throw new Error();
-            } catch (e) {
-                e.target.value = "ACTUAL"; AppState.memoriaHistorial1 = null;
-                if (btnGuardar && AppState.puedeEditarEstructura) { btnGuardar.classList.remove('hidden'); btnGuardar.classList.add('flex'); }
-            }
-        }
-        // Eliminado la funcion filtrarDropdown2
-        renderizarAmbasTablas();
-    });
+    
 
     // 🟢 EVENTO DEL COMBO COMPARATIVO CORREGIDO
     document.getElementById('cmbHistorialVersiones2').addEventListener('change', async (e) => {
@@ -278,12 +260,52 @@
         }
     }
 
-    let semanaActiva = 1;
+    // =========================================================
+    // ⏱️ MOTOR DE TIEMPO VISUAL (CINTA HISTÓRICA)
+    // =========================================================
+    let listadoSemanasGlobal = []; 
+    let indiceSemanaActual = 0; 
+    let semanaActiva = 1; // Para mantener compatibilidad visual con la pestaña seleccionada (1 a 4)
+
+    // 1. Inicializador (Llamar al cargar el proyecto)
+    async function inicializarMotorTiempo() {
+        try {
+            const res = await API.obtenerSemanasHistoricas(AppState.currentSheetsId);
+            if (res.success && res.semanas.length > 0) {
+                listadoSemanasGlobal = res.semanas;
+                
+                // Buscar la semana correspondiente a "Hoy"
+                const hoy = new Date();
+                hoy.setHours(0,0,0,0);
+                
+                let indiceEncontrado = 0;
+                for (let i = 0; i < listadoSemanasGlobal.length; i++) {
+                    let p = listadoSemanasGlobal[i].fecha.split('-');
+                    let fLunes = new Date(p[0], parseInt(p[1])-1, p[2]);
+                    let fDomingo = new Date(fLunes);
+                    fDomingo.setDate(fDomingo.getDate() + 6);
+                    
+                    if (hoy >= fLunes && hoy <= fDomingo) {
+                        indiceEncontrado = i; break;
+                    }
+                }
+                
+                if (indiceEncontrado > listadoSemanasGlobal.length - 4) {
+                    indiceEncontrado = Math.max(0, listadoSemanasGlobal.length - 4);
+                }
+                
+                indiceSemanaActual = indiceEncontrado;
+                semanaActiva = 1; // Siempre arranca mostrando la primera de la vista
+                actualizarInterfazSemanas();
+            }
+        } catch (e) { console.error("Error cargando motor de tiempo", e); }
+    }
+
+    // 2. Control de Pestañas Visuales (Sustituye al antiguo cambiarSemana)
     function cambiarSemana(num) {
         if (semanaActiva === num) return;
-
         if (document.getElementById('cmbHistorialVersiones').value === "ACTUAL") guardarProgramacionTemporal();
-
+        
         semanaActiva = num;
         for (let i = 1; i <= 4; i++) {
             const btn = document.getElementById(`btnSemana${i}`);
@@ -292,25 +314,59 @@
         renderizarAmbasTablas();
     }
 
+    // 3. Renderizar Textos de los Botones y Badge
+    function actualizarInterfazSemanas() {
+        if(listadoSemanasGlobal.length === 0) return;
+        
+        const bloque = listadoSemanasGlobal.slice(indiceSemanaActual, indiceSemanaActual + 4);
+        
+        for (let i = 0; i < 4; i++) {
+            let btn = document.getElementById(`btnSemana${i+1}`);
+            if (btn && bloque[i]) {
+                let p = bloque[i].fecha.split('-');
+                let inicio = new Date(p[0], parseInt(p[1])-1, p[2]);
+                let fin = new Date(inicio); fin.setDate(fin.getDate() + 6);
+                
+                let colorFecha = ((i+1) === semanaActiva) ? 'text-blue-600' : 'text-gray-400';
+                btn.innerHTML = `Semana ${bloque[i].semana} <span class="hidden sm:inline font-normal ${colorFecha} text-[10px] ml-1">(${inicio.getDate()}/${inicio.getMonth() + 1} - ${fin.getDate()}/${fin.getMonth() + 1})</span>`;
+            }
+        }
+        
+        if(bloque[0]) {
+            document.getElementById('badgeVentana').innerHTML = `🟢 RANGO ACTIVO: SEMANAS ${bloque[0].semana} AL ${bloque[bloque.length-1]?.semana || bloque[0].semana}`;
+            // Actualiza el pivote de la App para que generarCabeceraFechas pinte correctamente
+            AppState.configProyecto.fechaLunesBase = bloque[0].fecha;
+            AppState.configProyecto.semanaInicio = bloque[0].semana;
+        }
+        
+        renderizarAmbasTablas();
+    }
+
+    // 4. Generador de Cabeceras Dinámico (Sustituye al antiguo generarCabeceraFechas)
     function generarCabeceraFechas() {
         const trCabecera = document.getElementById('trCabeceraFechas');
         const trCabeceraSup = document.getElementById('trCabeceraFechasSup');
         document.querySelectorAll('.th-fecha').forEach(th => th.remove());
 
-        if (!AppState.configProyecto.fechaLunesBase) {
+        if (listadoSemanasGlobal.length === 0) {
             trCabecera.innerHTML += `<th colspan="7" class="th-fecha px-2 py-4 bg-red-50 text-red-600 font-bold border border-slate-300">⚠️ Configura el Rango primero.</th>`;
             return;
         }
 
-        let dInicioRango = new Date(AppState.configProyecto.fechaLunesBase + "T00:00:00");
+        // Calcula las fechas de la semana activa en pantalla
+        const bloque = listadoSemanasGlobal.slice(indiceSemanaActual, indiceSemanaActual + 4);
+        let fechaSemanaSeleccionada = bloque[semanaActiva - 1]?.fecha || bloque[0].fecha;
+        
+        let partes = fechaSemanaSeleccionada.split('-');
+        let dLunesBase = new Date(partes[0], parseInt(partes[1])-1, partes[2]);
+
+        // Llenado en memoria para validaciones
         AppState.fechasRangoActivo = [];
+        let dInicioRango = new Date(bloque[0].fecha.split('-')[0], parseInt(bloque[0].fecha.split('-')[1])-1, bloque[0].fecha.split('-')[2]);
         for (let i = 0; i < 28; i++) {
             let f = new Date(dInicioRango); f.setDate(dInicioRango.getDate() + i);
             AppState.fechasRangoActivo.push(`${String(f.getDate()).padStart(2, '0')}/${String(f.getMonth() + 1).padStart(2, '0')}/${f.getFullYear()}`);
         }
-
-        let dLunesBase = new Date(AppState.configProyecto.fechaLunesBase + "T00:00:00");
-        dLunesBase.setDate(dLunesBase.getDate() + ((semanaActiva - 1) * 7));
 
         const diasNombres = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
         const mesesNombres = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -330,21 +386,130 @@
             trCabecera.innerHTML += thHTML;
             if (trCabeceraSup) trCabeceraSup.innerHTML += thHTML;
         }
+    }
 
-        let semInicio = parseInt(AppState.configProyecto.semanaInicio) || 1;
-        for (let w = 1; w <= 4; w++) {
-            let btn = document.getElementById(`btnSemana${w}`);
-            if (btn) {
-                let numeroReal = semInicio + w - 1;
-                let inicioEstaSemana = new Date(AppState.configProyecto.fechaLunesBase + "T00:00:00");
-                inicioEstaSemana.setDate(inicioEstaSemana.getDate() + ((w - 1) * 7));
-                let finEstaSemana = new Date(inicioEstaSemana); finEstaSemana.setDate(finEstaSemana.getDate() + 6);
-                let colorFecha = (w === semanaActiva) ? 'text-blue-600' : 'text-gray-400';
-                btn.innerHTML = `Semana ${numeroReal} <span class="hidden sm:inline font-normal ${colorFecha} text-[10px] ml-1">(${inicioEstaSemana.getDate()}/${inicioEstaSemana.getMonth() + 1} - ${finEstaSemana.getDate()}/${finEstaSemana.getMonth() + 1})</span>`;
+    // 5. Botones Anterior y Siguiente
+    document.getElementById('btnSig').addEventListener('click', async () => {
+        let cmbHistorial = document.getElementById('cmbHistorialVersiones');
+        if (cmbHistorial && cmbHistorial.value !== "ACTUAL") return alert("Estás en modo lectura de una versión pasada. Vuelve a la 'Versión Actual' para navegar.");
+
+        const btn = document.getElementById('btnSig');
+        btn.disabled = true; btn.innerHTML = "...";
+
+        let sigIndice = indiceSemanaActual + 1;
+
+        // Extendemos si estamos cerca del borde
+        if ((sigIndice + 3) >= listadoSemanasGlobal.length) {
+            const res = await API.extenderSemanaHistorica(AppState.currentSheetsId);
+            if (res.success) {
+                listadoSemanasGlobal.push({ fecha: res.nuevaFecha, semana: res.nuevaSemana });
+            } else {
+                alert("Error al extender calendario."); 
+                btn.disabled = false; btn.innerHTML = "Sig &rarr;"; 
+                return;
             }
         }
-        document.getElementById('badgeVentana').innerText = `🟢 Rango Activo: Semanas ${semInicio} al ${semInicio + 3}`;
+
+        indiceSemanaActual = sigIndice;
+        actualizarInterfazSemanas();
+        btn.disabled = false; btn.innerHTML = "Sig &rarr;";
+    });
+
+    document.getElementById('btnAnt').addEventListener('click', () => {
+        let cmbHistorial = document.getElementById('cmbHistorialVersiones');
+        if (cmbHistorial && cmbHistorial.value !== "ACTUAL") return alert("Estás en modo lectura de una versión pasada. Vuelve a la 'Versión Actual' para navegar.");
+
+        if (indiceSemanaActual > 0) {
+            indiceSemanaActual--;
+            actualizarInterfazSemanas();
+        } else {
+            alert("Ya estás en el inicio del proyecto.");
+        }
+    });
+
+    // =========================================================
+// UNIFICACIÓN: EVENTO DEL COMBOBOX (Viaje Temporal + Datos JSON)
+// =========================================================
+document.getElementById('cmbHistorialVersiones').addEventListener('change', async (e) => {
+    const val = e.target.value;
+    const btnGuardar = document.getElementById('btnGuardarOrden');
+
+    // 1. VIAJE EN EL TIEMPO VISUAL
+    const opcionSeleccionada = e.target.options[e.target.selectedIndex];
+    const rangoAtributo = opcionSeleccionada.getAttribute('data-rango'); // Ej: "Sem 39-42"
+    
+    if (rangoAtributo) {
+        const matchRango = rangoAtributo.match(/Sem (\d+)/);
+        if (matchRango) {
+            const semInicioRequerida = parseInt(matchRango[1]);
+            const nuevoIndice = listadoSemanasGlobal.findIndex(s => parseInt(s.semana) === semInicioRequerida);
+            if (nuevoIndice !== -1) {
+                indiceSemanaActual = nuevoIndice;
+                semanaActiva = 1; 
+                actualizarInterfazSemanas(); // Mueve las cabeceras
+            }
+        }
     }
+
+    // 2. CARGA DE DATOS JSON (Memoria)
+    if (val === "ACTUAL") {
+        AppState.memoriaHistorial1 = null;
+        if (btnGuardar && AppState.puedeEditarEstructura) { btnGuardar.classList.remove('hidden'); btnGuardar.classList.add('flex'); }
+        renderizarAmbasTablas();
+    } else {
+        document.getElementById('tbodyLookAhead').innerHTML = `<tr><td colspan="12" class="text-center py-10 text-indigo-500 animate-pulse font-bold">Viajando a la ${val}...</td></tr>`;
+        if (btnGuardar) { btnGuardar.classList.add('hidden'); btnGuardar.classList.remove('flex'); }
+        try {
+            const res = await API.obtenerVersionAntigua(AppState.currentSheetsId, val);
+            if (res.success) {
+                AppState.memoriaHistorial1 = res.actividades; 
+            } else throw new Error();
+        } catch (e) {
+            e.target.value = "ACTUAL"; AppState.memoriaHistorial1 = null;
+            if (btnGuardar && AppState.puedeEditarEstructura) { btnGuardar.classList.remove('hidden'); btnGuardar.classList.add('flex'); }
+        }
+        renderizarAmbasTablas(); // Dibuja la tabla con el JSON
+    }
+});
+
+
+// =========================================================
+// LÓGICA DEL BOTÓN: "IR A HOY"
+// =========================================================
+document.getElementById('btnIrAHoy').addEventListener('click', () => {
+    // Si estábamos en una versión del pasado, la regresamos a "ACTUAL"
+    let cmbHistorial = document.getElementById('cmbHistorialVersiones');
+    if (cmbHistorial && cmbHistorial.value !== "ACTUAL") {
+        cmbHistorial.value = "ACTUAL";
+        cmbHistorial.dispatchEvent(new Event('change')); // Dispara la carga de datos vivos
+    }
+
+    // Recalcular la fecha de Hoy
+    const hoy = new Date();
+    hoy.setHours(0,0,0,0);
+    
+    let indiceEncontrado = 0;
+    for (let i = 0; i < listadoSemanasGlobal.length; i++) {
+        let p = listadoSemanasGlobal[i].fecha.split('-');
+        let fLunes = new Date(p[0], parseInt(p[1])-1, p[2]);
+        let fDomingo = new Date(fLunes);
+        fDomingo.setDate(fDomingo.getDate() + 6);
+        
+        if (hoy >= fLunes && hoy <= fDomingo) {
+            indiceEncontrado = i; break;
+        }
+    }
+    
+    // Evitar desbordes
+    if (indiceEncontrado > listadoSemanasGlobal.length - 4) {
+        indiceEncontrado = Math.max(0, listadoSemanasGlobal.length - 4);
+    }
+    
+    // Viajar y pintar
+    indiceSemanaActual = indiceEncontrado;
+    semanaActiva = 1;
+    actualizarInterfazSemanas();
+});
 
     // ---------------- EL MOTOR UNIFICADO ----------------
     function renderizarAmbasTablas() {

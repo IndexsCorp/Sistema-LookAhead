@@ -230,7 +230,7 @@
             </div>
 
             <div class="flex justify-between items-center bg-white p-2 border-b border-gray-200 text-xs sm:text-sm">
-                <button class="p-2 text-gray-500 hover:bg-gray-100 rounded-lg font-bold">&larr; Ant</button>
+                <button id="btnAnt" class="p-2 text-gray-500 hover:bg-gray-100 rounded-lg font-bold">&larr; Ant</button>
 
                 <div class="flex space-x-1 sm:space-x-2 font-semibold overflow-x-auto hide-scrollbar">
                     <button id="btnSemana1" onclick="cambiarSemana(1)"
@@ -249,9 +249,13 @@
                         class="tab-semana px-3 sm:px-4 py-1.5 text-gray-600 hover:bg-slate-100 rounded-lg whitespace-nowrap transition-all hidden sm:block">
                         Semana 4
                     </button>
+                    <!-- 🟢 NUEVO BOTÓN: IR A HOY -->
+                    <button id="btnIrAHoy" title="Volver a la semana actual" class="ml-1 px-2 py-1.5 bg-slate-700 text-white rounded hover:bg-slate-800 transition-colors text-[10px] font-bold shadow-sm">
+                        📅 Hoy
+                    </button>
                 </div>
 
-                <button class="p-2 text-gray-500 hover:bg-gray-100 rounded-lg font-bold">Sig &rarr;</button>
+                <button id="btnSig" class="p-2 text-gray-500 hover:bg-gray-100 rounded-lg font-bold">Sig &rarr;</button>
             </div>
 
             <!-- TABLA PRINCIPAL (ARRIBA) -->

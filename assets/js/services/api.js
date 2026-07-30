@@ -51,6 +51,15 @@ const API = {
     guardarConfiguracionProyecto(sheetsId, fechaLunesBase, semanaInicio) {
         return this.ejecutar("guardarConfigProyecto", { sheetsId, fechaLunesBase, semanaInicio });
     },
+    obtenerSemanasHistoricas(sheetsId) {
+        return this.ejecutar("obtenerSemanasHistoricas", { sheetsId });
+    },
+    establecerSemanasBase(sheetsId, fechaLunesBase, semanaInicio) {
+        return this.ejecutar("establecerSemanasBase", { sheetsId, fechaLunesBase, semanaInicio });
+    },
+    extenderSemanaHistorica(sheetsId) {
+        return this.ejecutar("extenderSemanaHistorica", { sheetsId });
+    },
 
     // --- PPC ---
     obtenerDatosPPC(sheetsId, versionBase, semanaEvaluada, rol) {
