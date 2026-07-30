@@ -301,45 +301,47 @@
         } catch (e) { console.error("Error cargando motor de tiempo", e); }
     }
 
-    // 2. Control de Pestañas Visuales (Sustituye al antiguo cambiarSemana)
+    // 2. Control de Pestañas Visuales
     function cambiarSemana(num) {
         if (semanaActiva === num) return;
         if (document.getElementById('cmbHistorialVersiones').value === "ACTUAL") guardarProgramacionTemporal();
         
         semanaActiva = num;
-        for (let i = 1; i <= 4; i++) {
-            const btn = document.getElementById(`btnSemana${i}`);
-            if (btn) btn.className = i === num ? "tab-semana px-3 sm:px-4 py-1.5 bg-blue-100 text-blue-800 rounded-lg whitespace-nowrap border border-blue-200 shadow-sm transition-all" : "tab-semana px-3 sm:px-4 py-1.5 text-gray-600 hover:bg-slate-100 rounded-lg whitespace-nowrap transition-all hidden sm:block";
-        }
-        renderizarAmbasTablas();
+        // Ahora delegamos el repintado visual a la función principal
+        actualizarInterfazSemanas();
     }
 
     // 3. Renderizar Textos de los Botones y Badge
     function actualizarInterfazSemanas() {
-        if(listadoSemanasGlobal.length === 0) return;
-        
-        const bloque = listadoSemanasGlobal.slice(indiceSemanaActual, indiceSemanaActual + 4);
-        
-        for (let i = 0; i < 4; i++) {
-            let btn = document.getElementById(`btnSemana${i+1}`);
-            if (btn && bloque[i]) {
-                let p = bloque[i].fecha.split('-');
-                let inicio = new Date(p[0], parseInt(p[1])-1, p[2]);
-                let fin = new Date(inicio); fin.setDate(fin.getDate() + 6);
-                
-                let colorFecha = ((i+1) === semanaActiva) ? 'text-blue-600' : 'text-gray-400';
-                btn.innerHTML = `Semana ${bloque[i].semana} <span class="hidden sm:inline font-normal ${colorFecha} text-[10px] ml-1">(${inicio.getDate()}/${inicio.getMonth() + 1} - ${fin.getDate()}/${fin.getMonth() + 1})</span>`;
-            }
+    if(listadoSemanasGlobal.length === 0) return;
+    
+    const bloque = listadoSemanasGlobal.slice(indiceSemanaActual, indiceSemanaActual + 4);
+    
+    for (let i = 0; i < 4; i++) {
+        let btn = document.getElementById(`btnSemana${i+1}`);
+        if (btn && bloque[i]) {
+            let p = bloque[i].fecha.split('-');
+            let inicio = new Date(p[0], parseInt(p[1])-1, p[2]);
+            let fin = new Date(inicio); fin.setDate(fin.getDate() + 6);
+            
+            let colorFecha = ((i+1) === semanaActiva) ? 'text-blue-600' : 'text-gray-400';
+            btn.innerHTML = `Semana ${bloque[i].semana} <span class="hidden sm:inline font-normal ${colorFecha} text-[10px] ml-1">(${inicio.getDate()}/${inicio.getMonth() + 1} - ${fin.getDate()}/${fin.getMonth() + 1})</span>`;
+            
+            // 🟢 SOLUCIÓN DEL BUG: Aplicamos el color de fondo correcto a la pestaña activa
+            btn.className = ((i+1) === semanaActiva) 
+                ? "tab-semana px-3 sm:px-4 py-1.5 bg-blue-100 text-blue-800 rounded-lg whitespace-nowrap border border-blue-200 shadow-sm transition-all" 
+                : "tab-semana px-3 sm:px-4 py-1.5 text-gray-600 hover:bg-slate-100 rounded-lg whitespace-nowrap transition-all hidden sm:block";
         }
-        
-        if(bloque[0]) {
-            document.getElementById('badgeVentana').innerHTML = `🟢 RANGO ACTIVO: SEMANAS ${bloque[0].semana} AL ${bloque[bloque.length-1]?.semana || bloque[0].semana}`;
-            // Actualiza el pivote de la App para que generarCabeceraFechas pinte correctamente
-            AppState.configProyecto.fechaLunesBase = bloque[0].fecha;
-            AppState.configProyecto.semanaInicio = bloque[0].semana;
-        }
-        
-        renderizarAmbasTablas();
+    }
+    
+    if(bloque[0]) {
+        document.getElementById('badgeVentana').innerHTML = `🟢 RANGO ACTIVO: SEMANAS ${bloque[0].semana} AL ${bloque[bloque.length-1]?.semana || bloque[0].semana}`;
+        // Actualiza el pivote de la App para que generarCabeceraFechas pinte correctamente
+        AppState.configProyecto.fechaLunesBase = bloque[0].fecha;
+        AppState.configProyecto.semanaInicio = bloque[0].semana;
+    }
+    
+    renderizarAmbasTablas();
     }
 
     // 4. Generador de Cabeceras Dinámico (Sustituye al antiguo generarCabeceraFechas)
