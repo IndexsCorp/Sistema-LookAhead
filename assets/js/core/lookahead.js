@@ -49,16 +49,12 @@
                 AppState.memoriaProgramacion = respuesta.programacion || [];
                 AppState.configProyecto = respuesta.configuracion || { fechaLunesBase: null, semanaInicio: 1 };
 
-                await inicializarMotorTiempo();
-
                 const sessionData = JSON.parse(sessionStorage.getItem('usuarioActivo'));
                 if (sessionData) AppState.rolGlobalReal = sessionData.rol;
 
-                // 🟢 ASIGNACIÓN ESTRICTA DE PERMISOS
                 AppState.puedeEditarSectores = !["STAFF", "SC", "RUBRO"].includes(AppState.rolGlobalReal);
                 AppState.puedeEditarEstructura = !["SC", "RUBRO"].includes(AppState.rolGlobalReal);
 
-                // Solo el ADMIN puede cambiar de rol simulado
                 if (AppState.rolGlobalReal === "ADMIN") {
                     document.getElementById('cmbRolSimulado').classList.remove('hidden');
                 }
@@ -69,11 +65,33 @@
                 AppState.listaVersionesGlobal = respuesta.versions || respuesta.versiones || [];
                 llenarDropdownsVersiones();
 
-                // 🟢 AQUÍ EJECUTAMOS LA NOTA: 
-                // Llenamos el combobox con los contratistas antes de pintar la tabla
-                actualizarOpcionesFiltroSC();
-
-                renderizarAmbasTablas();
+                // 🟢 Recepción sin doble viaje
+                if (respuesta.semanasHistoricas && respuesta.semanasHistoricas.length > 0) {
+                    listadoSemanasGlobal = respuesta.semanasHistoricas;
+                    
+                    const hoy = new Date();
+                    hoy.setHours(0,0,0,0);
+                    
+                    let indiceEncontrado = 0;
+                    for (let i = 0; i < listadoSemanasGlobal.length; i++) {
+                        let p = listadoSemanasGlobal[i].fecha.split('-');
+                        let fLunes = new Date(p[0], parseInt(p[1])-1, p[2]);
+                        let fDomingo = new Date(fLunes);
+                        fDomingo.setDate(fDomingo.getDate() + 6);
+                        
+                        if (hoy >= fLunes && hoy <= fDomingo) {
+                            indiceEncontrado = i; break;
+                        }
+                    }
+                    if (indiceEncontrado > listadoSemanasGlobal.length - 4) {
+                        indiceEncontrado = Math.max(0, listadoSemanasGlobal.length - 4);
+                    }
+                    indiceSemanaActual = indiceEncontrado;
+                    semanaActiva = 1; 
+                    actualizarInterfazSemanas(); 
+                } else {
+                    renderizarAmbasTablas(); 
+                }
 
             } else {
                 tbody.innerHTML = `<tr><td colspan="12" class="text-center py-10 text-red-500 font-semibold">Error: ${respuesta.message}</td></tr>`;
@@ -145,38 +163,8 @@
         AppState.memoriaProgramacion = nuevaMemoria;
     }
 
-    // =========================================================
-    // LÓGICA DEL FILTRO VISUAL: SC / RUBRO
-    // =========================================================
-    function actualizarOpcionesFiltroSC() {
-        const cmb = document.getElementById('cmbFiltroSCLook');
-        if (!cmb) return;
-        
-        let valorActual = cmb.value;
-        let setSC = new Set();
-        
-        // Extraer todos los SC / Rubros únicos de la memoria viva
-        AppState.memoriaCache.forEach(a => {
-            if (a.estado !== 'ELIMINADO' && a.scRubro && a.scRubro.trim() !== '') {
-                setSC.add(a.scRubro.trim().toUpperCase());
-            }
-        });
-        
-        let html = '<option value="">Filtros (Todos)</option>';
-        [...setSC].sort().forEach(sc => {
-            html += `<option value="${sc}">${sc}</option>`;
-        });
-        
-        cmb.innerHTML = html;
-        if ([...setSC].includes(valorActual)) cmb.value = valorActual;
-    }
-
-    // Evento que repinta la tabla cuando el usuario elige un filtro
-    document.getElementById('cmbFiltroSCLook').addEventListener('change', () => {
-        renderizarAmbasTablas();
-    });
     
-    
+       
     // =========================================================
     // 2. RENDERIZADO UNIFICADO Y CONTROL DE VERSIONES
     // =========================================================
@@ -304,40 +292,7 @@
     let indiceSemanaActual = 0; 
     let semanaActiva = 1; // Para mantener compatibilidad visual con la pestaña seleccionada (1 a 4)
 
-    // 1. Inicializador (Llamar al cargar el proyecto)
-    async function inicializarMotorTiempo() {
-        try {
-            const res = await API.obtenerSemanasHistoricas(AppState.currentSheetsId);
-            if (res.success && res.semanas.length > 0) {
-                listadoSemanasGlobal = res.semanas;
-                
-                // Buscar la semana correspondiente a "Hoy"
-                const hoy = new Date();
-                hoy.setHours(0,0,0,0);
-                
-                let indiceEncontrado = 0;
-                for (let i = 0; i < listadoSemanasGlobal.length; i++) {
-                    let p = listadoSemanasGlobal[i].fecha.split('-');
-                    let fLunes = new Date(p[0], parseInt(p[1])-1, p[2]);
-                    let fDomingo = new Date(fLunes);
-                    fDomingo.setDate(fDomingo.getDate() + 6);
-                    
-                    if (hoy >= fLunes && hoy <= fDomingo) {
-                        indiceEncontrado = i; break;
-                    }
-                }
-                
-                if (indiceEncontrado > listadoSemanasGlobal.length - 4) {
-                    indiceEncontrado = Math.max(0, listadoSemanasGlobal.length - 4);
-                }
-                
-                indiceSemanaActual = indiceEncontrado;
-                semanaActiva = 1; // Siempre arranca mostrando la primera de la vista
-                actualizarInterfazSemanas();
-            }
-        } catch (e) { console.error("Error cargando motor de tiempo", e); }
-    }
-
+    
     // 2. Control de Pestañas Visuales
     function cambiarSemana(num) {
         if (semanaActiva === num) return;
@@ -556,6 +511,9 @@ document.getElementById('btnIrAHoy').addEventListener('click', () => {
         const tbody2 = document.getElementById('tbodyLookAheadSup');
         generarCabeceraFechas();
         tbody1.innerHTML = ''; if (tbody2) tbody2.innerHTML = '';
+
+        // 🟢 SEGURO DE VIDA: Si no hay semanas, abortar antes de que explote Javascript
+        if (listadoSemanasGlobal.length === 0) return;
 
         const dibujar = (tbodyTarget, esTabla1) => {
             let cmbEl = document.getElementById(esTabla1 ? 'cmbHistorialVersiones' : 'cmbHistorialVersiones2');
@@ -1536,7 +1494,7 @@ document.getElementById('btnExportarPDFLA').addEventListener('click', () => {
         <meta charset="UTF-8">
         <title>Look-Ahead Semanas ${bloque[0].semana}-${bloque[bloque.length-1].semana}</title>
         <style>
-            /* 🟢 SOLUCIÓN: FORZAR ORIENTACIÓN HORIZONTAL (LANDSCAPE) */
+            /* 🟢 REGLA OBLIGATORIA PARA HORIZONTAL */
             @media print {
                 @page { size: landscape; margin: 10mm 12mm; }
             }

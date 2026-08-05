@@ -718,7 +718,6 @@ document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
     
     let semanaNombre, versionBase, rolEvaluado, fechaReporte;
 
-    // 🟢 APLICAR METADATOS AL PDF (SOLUCIÓN 2)
     if (modoLecturaPPC && window.ppc_metaPDF) {
         semanaNombre = window.ppc_metaPDF.semanaEvaluada;
         versionBase = window.ppc_metaPDF.baseEvaluada;
