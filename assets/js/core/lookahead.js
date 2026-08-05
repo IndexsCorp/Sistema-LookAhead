@@ -874,7 +874,8 @@ document.getElementById('btnIrAHoy').addEventListener('click', () => {
         if (!AppState.puedeEditarEstructura) return; // Bloqueo de seguridad
 
         const btn = document.getElementById('btnGuardarOrden');
-        btn.innerHTML = `⏳ <span class="hidden sm:inline ml-1">Sincronizando...</span>`; btn.disabled = true;
+        btn.innerHTML = `⏳ <span class="hidden sm:inline ml-1">Sincronizando...</span>`; 
+        btn.disabled = true;
 
         guardarProgramacionTemporal();
 
@@ -892,9 +893,29 @@ document.getElementById('btnIrAHoy').addEventListener('click', () => {
 
         try {
             const respuesta = await API.guardarCambiosCache(AppState.currentSheetsId, AppState.memoriaCache, progParaGuardar, AppState.fechasRangoActivo, rolUsuario);
-            if (respuesta.success) cargarLookAhead(AppState.currentSheetsId);
-            else alert("Error: " + respuesta.message);
-        } catch (e) { alert("Error al sincronizar."); } finally { btn.disabled = false; }
+            if (respuesta.success) {
+                // 🟢 SOLUCIÓN: CORTAMOS EL DOBLE VIAJE.
+                // Ya no descargamos de internet, solo usamos la memoria viva.
+                renderizarAmbasTablas();
+                
+                btn.innerHTML = `✅ <span class="hidden sm:inline ml-1">¡Guardado!</span>`;
+                btn.classList.replace('bg-green-600', 'bg-teal-600');
+                
+                setTimeout(() => {
+                    btn.innerHTML = `💾 <span class="hidden sm:inline ml-1">Guardar</span>`;
+                    btn.classList.replace('bg-teal-600', 'bg-green-600');
+                    btn.disabled = false;
+                }, 2000);
+            } else { 
+                alert("Error: " + respuesta.message); 
+                btn.innerHTML = `💾 <span class="hidden sm:inline ml-1">Guardar</span>`;
+                btn.disabled = false;
+            }
+        } catch (e) { 
+            alert("Error al sincronizar."); 
+            btn.innerHTML = `💾 <span class="hidden sm:inline ml-1">Guardar</span>`;
+            btn.disabled = false;
+        } 
     });
 
     document.getElementById('btnRegistrarVersion').addEventListener('click', () => {
