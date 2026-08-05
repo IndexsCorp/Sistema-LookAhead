@@ -1465,23 +1465,17 @@ document.getElementById('btnExportarPDFLA').addEventListener('click', () => {
                     </tr>`;
             } else {
                 let celdasHTML = '';
-                let tieneDatosSemana = false;
 
                 fechasSemanaActual.forEach(fStr => {
                     let p = dataProg.find(x => x.idActividad === act.id && normFecha(x.fecha) === fStr && String(x.rol || "RESIDENTE").trim().toUpperCase() === String(rolEvaluado).toUpperCase());
                     
                     if (p && (p.sector || p.color)) {
-                        tieneDatosSemana = true;
                         let textColor = obtenerColorTextoContraste(p.color);
                         celdasHTML += `<td style="border: 1px solid #cbd5e1; padding: 6px 4px; text-align: center; color: ${textColor}; font-weight: bold; background-color: ${p.color};">${p.sector || ''}</td>`;
                     } else {
                         celdasHTML += `<td style="border: 1px solid #cbd5e1; background-color: #f8fafc;"></td>`;
                     }
                 });
-                
-                // Opcional: Si quieres que se impriman solo las actividades que tienen datos en esta semana,
-                // puedes descomentar la siguiente línea:
-                // if(!tieneDatosSemana) return; 
 
                 htmlFilasActividades += `
                     <tr class="evitar-quiebre">
@@ -1497,7 +1491,6 @@ document.getElementById('btnExportarPDFLA').addEventListener('click', () => {
         let pageBreak = (indexSemana < bloque.length - 1) ? '<div class="page-break"></div>' : '';
 
         // 5. ENSAMBLAR LA TABLA CON EL TÍTULO DENTRO DEL THEAD
-        // ¡Esto hace que el título se repita en cada hoja si la semana ocupa más de 1 página!
         paginasHTML += `
         <div class="hoja">
             <table style="width: 100%; border-collapse: collapse; text-align: center; font-size: 10px;">
@@ -1543,7 +1536,11 @@ document.getElementById('btnExportarPDFLA').addEventListener('click', () => {
         <meta charset="UTF-8">
         <title>Look-Ahead Semanas ${bloque[0].semana}-${bloque[bloque.length-1].semana}</title>
         <style>
-            @page { size: A4 landscape; margin: 10mm 12mm; }
+            /* 🟢 SOLUCIÓN: FORZAR ORIENTACIÓN HORIZONTAL (LANDSCAPE) */
+            @media print {
+                @page { size: landscape; margin: 10mm 12mm; }
+            }
+            @page { size: landscape; margin: 10mm 12mm; }
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; box-sizing: border-box; }
             body { font-family: 'Arial', sans-serif; margin: 0; padding: 0; background-color: white; color: #333; font-size: 11px; }
             .evitar-quiebre { page-break-inside: avoid; break-inside: avoid; }

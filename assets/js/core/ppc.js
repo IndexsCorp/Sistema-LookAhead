@@ -129,12 +129,11 @@ document.getElementById('cmbHistorialPPC').addEventListener('change', async (e) 
                 ppc_programacion = data.programacion || [];
                 ppc_borradores = data.resultadosPPC || []; 
 
-                // 🟢 NUEVO: CAPTURAR METADATOS PARA EL PDF
-                const textoOp = opcion.text; // Ej: "v1.0 • 20/07 (SUPERVISION) - Semana 39"
+                // 🟢 CAPTURAR METADATOS PARA EL PDF (SOLUCIÓN 2)
+                const textoOp = opcion.text; 
                 let rolGuardado = "DESCONOCIDO";
                 let fechaGuardada = "DESCONOCIDA";
                 
-                // Extraer fecha y rol usando los símbolos de separación
                 let matchInfo = textoOp.match(/•\s*(.*?)\s*\((.*?)\)/);
                 if (matchInfo) {
                     fechaGuardada = matchInfo[1].trim();
@@ -148,10 +147,8 @@ document.getElementById('cmbHistorialPPC').addEventListener('change', async (e) 
                     fechaReporte: fechaGuardada
                 };
 
-                // Reconstruimos las fechas basándonos en la Semana guardada en el JSON
                 let numSemana = data.semanaEvaluada.match(/\d+/);
                 let idxSemana = numSemana ? parseInt(numSemana[0]) : 1;
-
                 let semInicioObra = parseInt(AppState.configProyecto.semanaInicio) || 1;
                 let difSemana = idxSemana - semInicioObra; 
 
@@ -721,14 +718,13 @@ document.getElementById('btnExportarPDFPPC').addEventListener('click', () => {
     
     let semanaNombre, versionBase, rolEvaluado, fechaReporte;
 
-    // Si estamos viendo el pasado, tomamos la memoria congelada
+    // 🟢 APLICAR METADATOS AL PDF (SOLUCIÓN 2)
     if (modoLecturaPPC && window.ppc_metaPDF) {
         semanaNombre = window.ppc_metaPDF.semanaEvaluada;
         versionBase = window.ppc_metaPDF.baseEvaluada;
         rolEvaluado = window.ppc_metaPDF.rolEvaluado;
         fechaReporte = window.ppc_metaPDF.fechaReporte;
     } else {
-        // Si estamos editando hoy, tomamos los valores en vivo
         const semanaSel = document.getElementById('cmbSemanaPPC');
         semanaNombre = semanaSel.options[semanaSel.selectedIndex].text;
         versionBase = document.getElementById('cmbVersionPPC').value || "Actual";
