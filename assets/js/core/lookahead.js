@@ -1521,3 +1521,95 @@ document.getElementById('btnExportarPDFLA').addEventListener('click', () => {
     btn.innerHTML = originalText;
     btn.disabled = false;
 });
+
+// ==========================================
+// 7. ATAJOS DE TECLADO (SHORTCUTS)
+// ==========================================
+
+// Variable global para nuestro portapapeles virtual
+let portapapelesTeclado = null; 
+
+document.addEventListener('keydown', (e) => {
+    // 1. Evitar que los atajos se disparen si el usuario está escribiendo en un input, textarea o select
+    const tag = e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+    // Obtener celdas seleccionadas actualmente
+    const seleccionadas = document.querySelectorAll('.celda-seleccionada');
+
+    // 2. SUPRIMIR / BACKSPACE: Limpiar Sector
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (seleccionadas.length > 0) {
+            e.preventDefault();
+            document.getElementById('btnMenuEliminar').click();
+        }
+        return;
+    }
+
+    // 3. SHIFT + A: Asignar Sector
+    if (e.key.toLowerCase() === 'a' && e.shiftKey) {
+        if (seleccionadas.length > 0) {
+            e.preventDefault();
+            document.getElementById('btnMenuAsignar').click();
+        }
+        return;
+    }
+
+    // 4. SHIFT + M: Mover Sector
+    if (e.key.toLowerCase() === 'm' && e.shiftKey) {
+        if (seleccionadas.length > 0) {
+            e.preventDefault();
+            document.getElementById('btnMenuMover').click();
+        }
+        return;
+    }
+
+    // 5. CTRL + C: Copiar origen (Nombre y Color)
+    if (e.ctrlKey && e.key.toLowerCase() === 'c') {
+        if (seleccionadas.length > 0) {
+            e.preventDefault();
+            // Toma la primera celda de la selección como origen
+            const celdaOrigen = seleccionadas[0]; 
+            
+            if (celdaOrigen.style.backgroundColor || celdaOrigen.innerText.trim() !== '') {
+                portapapelesTeclado = {
+                    nombre: celdaOrigen.innerText.trim(),
+                    color: celdaOrigen.style.backgroundColor
+                };
+                
+                // Efecto visual opcional para confirmar copiado
+                celdaOrigen.style.opacity = '0.5';
+                setTimeout(() => celdaOrigen.style.opacity = '1', 150);
+            }
+        }
+        return;
+    }
+
+    // 6. CTRL + V (Pegar Ambos) y CTRL + SHIFT + V (Pegar Solo Formato/Color)
+    if (e.ctrlKey && e.key.toLowerCase() === 'v') {
+        if (seleccionadas.length > 0 && portapapelesTeclado) {
+            e.preventDefault();
+            const esSoloFormato = e.shiftKey; // Detecta si se incluye Shift
+
+            seleccionadas.forEach(celda => {
+                // Quitar estilos de selección
+                celda.classList.remove('celda-seleccionada', 'ring-4', 'ring-inset', 'ring-blue-600', 'brightness-75', 'bg-blue-100/50');
+                celda.className = `celda-prog border border-slate-300 cursor-pointer transition-colors relative font-bold text-[9px] text-center shadow-inner`;
+                
+                // Aplicar el color del portapapeles
+                celda.style.backgroundColor = portapapelesTeclado.color;
+                celda.style.color = obtenerColorTextoContraste(portapapelesTeclado.color);
+                
+                // Aplicar el texto solo si no es un "Pegado de Formato"
+                if (!esSoloFormato) {
+                    celda.innerHTML = portapapelesTeclado.nombre;
+                }
+            });
+
+            // Sincronizar la memoria global y mostrar el botón de Guardar
+            guardarProgramacionTemporal();
+            mostrarBotonGuardar();
+        }
+        return;
+    }
+});

@@ -1,29 +1,58 @@
-// 🟢 Pega aquí la URL que termine en /exec que te dio Google Apps Script
-const API_URL = "https://script.google.com/macros/s/AKfycbzhIHAa2cYwD363MW-4sUItakTMTWE9dzAwV95icTUPiLHnKACjX9uU34nZ6ezkgx5T/exec";
+// Apuntamos a tu nuevo servidor local de Node.js
+const BASE_URL = "http://localhost:3000/api";
 
 const API = {
-    async ejecutar(action, payload = {}) {
+    // 🛠️ FUNCIÓN PUENTE TEMPORAL
+    // Evita que las funciones sin migrar rompan la página entera.
+    async ejecutar(funcionGoogle, parametros) {
+        console.warn(`⚠️ Función pendiente de migrar a Node.js: ${funcionGoogle}`);
+        return []; // Devolvemos un arreglo vacío para que el Frontend no colapse
+    },
+
+    // --- AUTENTICACIÓN (FASE 1) ---
+    async validarLogin(identificador, password) {
         try {
-            const response = await fetch(API_URL, {
+            const response = await fetch(`${BASE_URL}/auth/login`, {
                 method: "POST",
-                body: JSON.stringify({ action, ...payload })
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ email: identificador, password: password })
             });
             return await response.json();
         } catch (error) {
-            console.error(`Error en API [${action}]:`, error);
-            return { success: false, message: "Error de conexión con el servidor." };
+            console.error(`Error en API [login]:`, error);
+            return { success: false, message: "Error de conexión con el servidor Node.js." };
         }
     },
 
-    // --- AUTENTICACIÓN Y PROYECTOS ---
-    validarLogin(email, password) {
-        return this.ejecutar("login", { email, password });
-    },
-    obtenerProyectos(idUsuario, rol) {
-        return this.ejecutar("obtenerProyectos", { idUsuario, rol });
+    // --- PROYECTOS (FASE 2) ---
+    async obtenerProyectos(usuarioParam, rol) {
+        try {
+            // Evaluamos si el parámetro viene dentro de un objeto o es un string/número directo
+            const codigo = typeof usuarioParam === 'object' 
+                ? (usuarioParam.codigo || usuarioParam.id || usuarioParam.usuario) 
+                : usuarioParam;
+
+            if (!codigo) {
+                console.error("⚠️ No se proporcionó un código de usuario válido.");
+                return [];
+            }
+
+            const response = await fetch(`${BASE_URL}/proyectos/${codigo}`);
+            
+            if (!response.ok) {
+                throw new Error(`Error en respuesta de proyectos: ${response.status}`);
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error(`Error en API [obtenerProyectos]:`, error);
+            return [];
+        }
     },
 
-    // --- LOOK-AHEAD ---
+    // --- LOOK-AHEAD (FASE 3) ---
     obtenerDatosLookAhead(sheetsId) {
         return this.ejecutar("obtenerDatosLookAhead", { sheetsId });
     },
