@@ -1,5 +1,5 @@
 // Apuntamos a tu nuevo servidor local de Node.js
-const BASE_URL = "http://localhost:3000/api";
+const BASE_URL = "https://script.google.com/macros/s/AKfycbzhIHAa2cYwD363MW-4sUItakTMTWE9dzAwV95icTUPiLHnKACjX9uU34nZ6ezkgx5T/exec";
 
 const API = {
     // 🛠️ FUNCIÓN PUENTE TEMPORAL
